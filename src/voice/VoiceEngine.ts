@@ -185,7 +185,7 @@ export class VoiceEngine {
       rec.continuous = false;
       rec.interimResults = false;
       rec.lang = this.opts.lang || 'en-IN';
-      rec.maxAlternatives = 3;
+      rec.maxAlternatives = 5;
 
       rec.onstart = () => {
         this.isStarting = false;
@@ -200,7 +200,21 @@ export class VoiceEngine {
         const result = event.results[lastIdx];
         if (!result || !result[0]) return;
 
-        const transcript = (result[0].transcript || '').trim();
+        let transcript = (result[0].transcript || '').trim();
+
+        // Check if another alternative provides an exact proper name or critical stop match
+        for (let i = 0; i < result.length; i++) {
+          const alt = (result[i]?.transcript || '').trim();
+          if (/^(ashwin|ashwin sharma|ashwin kumar|ashwin s|ashwin r)$/i.test(alt)) {
+            transcript = alt;
+            break;
+          }
+          if (isStopCommand(alt)) {
+            transcript = alt;
+            break;
+          }
+        }
+
         if (!transcript) return;
 
         // CRITICAL REQUIREMENT: If the system is currently speaking, ANY "stop" command halts speech immediately!

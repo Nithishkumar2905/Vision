@@ -668,3 +668,78 @@ test('Voice Registry: exactly 18 screen targets registered', () => {
   const count = Object.keys(SCREEN_TARGETS).length;
   assert.equal(count, 18, `Expected 18 SCREEN_TARGETS, got ${count}`);
 });
+
+// ---------------------------------------------------------------------------
+// 17. Hey Vision & Settings Screen Descriptions
+// ---------------------------------------------------------------------------
+
+test('Wake Word: "Hey Vision" includes Accessibility Settings and Screen Reader Settings in spoken response', async () => {
+  const { controller } = makeController({ currentScreen: 'dashboard' });
+  const result = await controller.processTranscript('hey vision');
+  assert.equal(result.status, 'system_handled');
+  const lower = result.spokenResponse.toLowerCase();
+  assert.ok(lower.includes('accessibility settings'), 'Expected spoken response to mention accessibility settings');
+  assert.ok(lower.includes('screen reader settings'), 'Expected spoken response to mention screen reader settings');
+  assert.ok(lower.includes('high-contrast') || lower.includes('contrast'), 'Expected description of visual themes/contrast');
+  assert.ok(lower.includes('speech speed') || lower.includes('pitch'), 'Expected description of speech controls');
+});
+
+test('Wake Word: "Hey Vision" on Accessibility Settings gives context-aware page commands', async () => {
+  const { controller } = makeController({ currentScreen: 'accessibility_settings' });
+  const result = await controller.processTranscript('hey vision');
+  assert.equal(result.status, 'system_handled');
+  const lower = result.spokenResponse.toLowerCase();
+  assert.ok(lower.includes('accessibility settings'), 'Expected reference to current page');
+  assert.ok(lower.includes('standard theme') || lower.includes('yellow'), 'Expected theme command guidance');
+  assert.ok(lower.includes('font'), 'Expected font scaling command guidance');
+  assert.ok(lower.includes('compensatory time'), 'Expected compensatory time guidance');
+});
+
+test('Wake Word: "Hey Vision" on Screen Reader Settings gives context-aware page commands', async () => {
+  const { controller } = makeController({ currentScreen: 'screen_reader_settings' });
+  const result = await controller.processTranscript('hey vision');
+  assert.equal(result.status, 'system_handled');
+  const lower = result.spokenResponse.toLowerCase();
+  assert.ok(lower.includes('screen reader settings'), 'Expected reference to current page');
+  assert.ok(lower.includes('speech speed') || lower.includes('speed 2x'), 'Expected speech speed command guidance');
+  assert.ok(lower.includes('pitch'), 'Expected pitch command guidance');
+  assert.ok(lower.includes('volume'), 'Expected volume command guidance');
+  assert.ok(lower.includes('save preferences') || lower.includes('save'), 'Expected save preferences guidance');
+});
+
+test('Screen matching: expanded accessibility settings aliases', () => {
+  const cases = [
+    'accessibility settings',
+    'open accessibility settings',
+    'go to accessibility settings',
+    'contrast settings',
+    'visual settings',
+    'visual accessibility',
+    'color theme',
+    'accessibility menu'
+  ];
+  for (const phrase of cases) {
+    const result = matchScreenNavigation(phrase);
+    assert.ok(result, `Expected match for "${phrase}"`);
+    assert.equal(result!.target.screenId, 'accessibility_settings', `Expected accessibility_settings for "${phrase}"`);
+  }
+});
+
+test('Screen matching: expanded screen reader settings aliases', () => {
+  const cases = [
+    'screen reader settings',
+    'open screen reader settings',
+    'go to screen reader settings',
+    'voice settings',
+    'open voice settings',
+    'speech settings',
+    'audio settings',
+    'screen reader options',
+    'voice speed'
+  ];
+  for (const phrase of cases) {
+    const result = matchScreenNavigation(phrase);
+    assert.ok(result, `Expected match for "${phrase}"`);
+    assert.equal(result!.target.screenId, 'screen_reader_settings', `Expected screen_reader_settings for "${phrase}"`);
+  }
+});

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ACCESSPREP-X — Global Voice Navigation Controller
  *
  * Priority chain (highest → lowest):
@@ -67,11 +67,11 @@ export function buildPageSpecificHelp(screenId: ScreenId): string {
     case 'ai_tutor':
       return 'In AI Tutor, you can ask any syllabus doubt, say Repeat Answer, Stop Speaking, or Clear Chat.';
     case 'learning_history':
-      return 'In Transcript Workspace, you can say: Start Recording, Stop Recording, Pause Recording, Resume Recording, Save Transcript, Copy Transcript, Export Transcript, or Read Transcript Aloud.';
+      return 'In Transcript Workspace, you can say: Start Recording to begin live speech transcription, Stop Recording to end dictation, Copy or press Control C to copy your transcript to clipboard, Read Transcript Aloud, Pause Recording, Resume Recording, Save Transcript, Export Transcript, or Clear Transcript.';
     case 'screen_reader_settings':
-      return 'In Screen Reader Settings, you can say: Set speech speed to 1.5x, Set pitch to 1.2, Test Voice, Stop Speaking, or Restore Defaults.';
+      return 'In Screen Reader Settings, you can control all buttons by voice. Say: Set speech speed to 1.5x, Speed 2x, Faster speech, or Slower speech to adjust speed. Say: Set pitch to 1.2, Higher pitch, or Normal pitch. Say: Set volume to 80 percent. Say: Test voice to play sample audio. Say: Save preferences to apply settings. Say: Restore defaults to reset. Say: Toggle question reading or Toggle option reading. Say: Open accessibility settings to switch to visual theme settings. Say: Stop speaking to silence audio.';
     case 'accessibility_settings':
-      return 'In Accessibility Settings, you can say: High Contrast Yellow, Monochrome Theme, Soft Dark Theme, or Standard Theme.';
+      return 'In Accessibility Settings, you can control all buttons by voice. Say: Standard theme, High contrast yellow, Monochrome, or Soft dark to change themes. Say: Normal font, Large font, Extra large font, or Maximum font to scale text. Say: Enable dyslexia font or Disable dyslexia font. Say: Enable compensatory time or Disable compensatory time for PwD timing. Say: Test voice to test audio. Say: Reset defaults to restore settings. Say: Read current settings to hear your setup. Say: Open screen reader settings to adjust speech audio. Say: Stop speaking to silence audio.';
     case 'progress':
       return 'On Progress Analytics, you can say: Read Score Trends, Speed Analysis, or Return to Dashboard.';
     case 'topic_mastery':
@@ -209,20 +209,57 @@ export class NavigationController {
         }
       }
 
-      const spokenResponse = `${timeGreeting}, ${candidateName}, welcome back! I am your Vision Assistant. ` +
-        `Here is what you can do. ` +
-        `Say "Start practice" or "Start exam" to begin voice practice questions. ` +
-        `Say "Mock exam" or "Mock test" for a full timed mock examination. ` +
-        `Say "AI tutor" or "Tutor" to ask any subject doubt. ` +
-        `Say "Revision planner" or "Tuition planner" to review flashcards. ` +
-        `Say "My progress" or "Analytics" to see your score trends. ` +
-        `Say "Topic mastery" to view your skill levels. ` +
-        `Say "Dashboard" or "Read dashboard" to return to the home screen. ` +
-        `Say "Subjects" to explore the SSC MTS syllabus. ` +
-        `Say "Screen reader settings" to adjust speech speed or pitch. ` +
-        `You can also use keyboard shortcuts: Alt+D for Dashboard, Alt+P for Voice Practice, Alt+M for Mock Exam, Alt+T for AI Tutor, Alt+R for Revision Planner, and Alt+Arrow keys to move between screens. ` +
-        `On any page, say "Stop" to stop reading and start listening. ` +
-        `What would you like to do?`;
+      let spokenResponse = '';
+
+      if (this.context.currentScreen === 'accessibility_settings') {
+        spokenResponse = `${timeGreeting}, ${candidateName}! You are on Accessibility Settings. Here is how you can control this page with your voice. ` +
+          `Say "Standard theme", "High contrast yellow", "Monochrome", or "Soft dark" to switch visual themes. ` +
+          `Say "Normal font", "Large font", "Extra large font", or "Maximum font" to scale text size. ` +
+          `Say "Enable dyslexia font" or "Disable dyslexia font" to toggle readable typography. ` +
+          `Say "Enable compensatory time" or "Disable compensatory time" for 60-minute PwD exam time accommodations. ` +
+          `Say "Test voice" to test audio playback, "Reset defaults" to restore standard settings, or "Read current settings" to hear your configuration. ` +
+          `Say "Screen reader settings" to adjust speech rate, voice pitch, volume, and reading preferences. ` +
+          `Say "Stop" at any time to silence speech. What would you like to adjust?`;
+      } else if (this.context.currentScreen === 'screen_reader_settings') {
+        spokenResponse = `${timeGreeting}, ${candidateName}! You are on Screen Reader Settings. Here is how you can control this page with your voice. ` +
+          `Say "Set speech speed to 1.5x", "Speed 2x", "Speed 0.5x", "Faster speech", or "Slower speech" to adjust reading speed. ` +
+          `Say "Set pitch to 1.2", "Higher pitch", "Lower pitch", or "Normal pitch" to tune voice pitch. ` +
+          `Say "Set volume to 80 percent" or "Volume 100" to adjust audio volume. ` +
+          `Say "Test voice" to hear a sample announcement. ` +
+          `Say "Save preferences" or "Save settings" to save your configuration. ` +
+          `Say "Restore defaults" to reset speech settings to default values. ` +
+          `Say "Toggle question reading" or "Toggle option reading" to customize automatic reading. ` +
+          `Say "Accessibility settings" to switch to visual contrast and theme options. ` +
+          `Say "Stop" at any time to silence speech. What would you like to adjust?`;
+      } else if (this.context.currentScreen === 'learning_history') {
+        spokenResponse = `${timeGreeting}, ${candidateName}! You are on Candidate Transcript Workspace. Here is how you can control this page with your voice. ` +
+          `Say "Start Recording" to begin live dictation and speech-to-text transcription. ` +
+          `Say "Stop Recording" to end dictation. ` +
+          `Say "Copy" or press Control C to copy your transcript to clipboard. ` +
+          `Say "Read transcript" or "Read aloud" to listen to your recorded text. ` +
+          `Say "Pause recording" or "Resume recording" to control dictation. ` +
+          `Say "Save transcript" to store your notes, or "Export transcript" to download as a text file. ` +
+          `Say "Clear transcript" to erase current text. ` +
+          `Say "Open audit log", "Voice recognition log", or "Privacy settings" to switch tabs. ` +
+          `Say "Stop" at any time to silence speech. What would you like to do?`;
+      } else {
+        spokenResponse = `${timeGreeting}, ${candidateName}, welcome back! I am your Vision Assistant. ` +
+          `Here is what you can do. ` +
+          `Say "Start practice" or "Start exam" to begin voice practice questions. ` +
+          `Say "Mock exam" or "Mock test" for a full timed mock examination. ` +
+          `Say "AI tutor" or "Tutor" to ask any subject doubt. ` +
+          `Say "Revision planner" or "Tuition planner" to review flashcards. ` +
+          `Say "Transcript workspace" to dictate notes and transcribe speech in real time. ` +
+          `Say "My progress" or "Analytics" to see your score trends. ` +
+          `Say "Topic mastery" to view your skill levels. ` +
+          `Say "Dashboard" or "Read dashboard" to return to the home screen. ` +
+          `Say "Subjects" to explore the SSC MTS syllabus. ` +
+          `Say "Accessibility settings" to customize visual contrast themes, font scaling, dyslexia font, and compensatory time. ` +
+          `Say "Screen reader settings" to adjust speech rate, voice pitch, volume, and reading preferences. ` +
+          `You can also use keyboard shortcuts: Alt+D for Dashboard, Alt+P for Voice Practice, Alt+M for Mock Exam, Alt+T for AI Tutor, Alt+R for Revision Planner, and Alt+Arrow keys to move between screens. ` +
+          `On any page, say "Stop" to stop reading and start listening. ` +
+          `What would you like to do?`;
+      }
 
       return {
         ...base,
@@ -560,7 +597,11 @@ export class NavigationController {
     this.navigateFn(target.screenId);
 
     const spokenSubject = subjectLabel ? ` for ${subjectLabel}` : '';
-    const response = `Opening ${target.spokenName}${spokenSubject}.`;
+    let response = `Opening ${target.spokenName}${spokenSubject}.`;
+
+    if (target.screenId === 'learning_history') {
+      response = `Opening ${target.spokenName}. This workspace converts everything you say into text in real time. After it opens, say "Start Recording" to begin dictating, and "Stop Recording" when done. Say "Copy" or press Control C to copy your transcript.`;
+    }
 
     return {
       ...base,

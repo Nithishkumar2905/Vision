@@ -267,15 +267,22 @@ export const SCREEN_TARGETS: Record<ScreenId, NavigationTarget> = {
     aliases: [
       'accessibility settings',
       'open accessibility settings',
+      'go to accessibility settings',
       'accessibility',
       'settings',
       'preferences',
       'contrast',
+      'contrast settings',
       'display settings',
       'theme settings',
       'font size',
       'visual settings',
-      'configure accessibility'
+      'visual accessibility',
+      'color theme',
+      'color themes',
+      'high contrast',
+      'configure accessibility',
+      'accessibility menu'
     ],
     requiresAuth: false,
     actionSummary: 'You can customize visual contrast palettes, high contrast borders, typography scaling, OpenDyslexic font, and compensatory examination timing.'
@@ -292,6 +299,15 @@ export const SCREEN_TARGETS: Record<ScreenId, NavigationTarget> = {
       'transcript workspace',
       'open transcript',
       'open transcript workspace',
+      'transcripts workspace',
+      'open transcripts workspace',
+      'go to transcript workspace',
+      'candidate transcript workspace',
+      'live dictation',
+      'live dictation workspace',
+      'dictation workspace',
+      'voice dictation',
+      'voice recording workspace',
       'voice transcript',
       'voice log',
       'learning history',
@@ -304,7 +320,7 @@ export const SCREEN_TARGETS: Record<ScreenId, NavigationTarget> = {
       'test history'
     ],
     requiresAuth: true,
-    actionSummary: 'You can review recognized voice transcripts, manage transcript privacy and deletion, and browse learning history.'
+    actionSummary: 'You can dictate and record notes in real time, run automated grammar analysis, review recognized voice transcripts, export transcripts, and manage privacy settings.'
   },
   model_evaluation: {
     screenId: 'model_evaluation',
@@ -371,14 +387,23 @@ export const SCREEN_TARGETS: Record<ScreenId, NavigationTarget> = {
     aliases: [
       'screen reader settings',
       'open screen reader settings',
+      'go to screen reader settings',
       'screen reader',
       'voice settings',
+      'open voice settings',
       'speech settings',
+      'open speech settings',
       'text to speech settings',
       'tts settings',
       'voice preferences',
       'speech rate',
-      'voice options'
+      'voice options',
+      'audio settings',
+      'sound settings',
+      'speech controls',
+      'voice controls',
+      'screen reader options',
+      'voice speed'
     ],
     requiresAuth: false,
     actionSummary: 'You can customize text-to-speech rate, pitch, browser voice selection, language preferences, audio feedback, and question reading preferences.'

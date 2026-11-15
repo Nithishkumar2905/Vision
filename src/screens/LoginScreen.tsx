@@ -19,6 +19,8 @@ import { AuthenticationErrorMessage } from '../components/auth/AuthenticationErr
 import {
   formatCaptchaForSpeech,
   normalizeSpokenEmail,
+  normalizeSpokenName,
+  spellOutIdentifier,
   validateLoginIdentifier,
   parseAuthVoiceCommand
 } from '../utils/authVoiceUtils.ts';
@@ -571,7 +573,7 @@ export function LoginScreen() {
         const normalized = normalizeSpokenEmail(rawTranscript);
         if (!normalized) {
           speakAndRecord(
-            'I could not catch your email address. Please say your email address again, for example student at example dot com.',
+            'I could not catch your email address. Please say your registered email address or candidate roll number again.',
             () => startVoiceListening()
           );
           return true;
@@ -582,8 +584,9 @@ export function LoginScreen() {
         setVoiceStep('confirm_email');
         voiceStepRef.current = 'confirm_email';
 
+        const spelledOut = spellOutIdentifier(normalized);
         speakAndRecord(
-          `I heard ${normalized}. Is this correct? Say Yes to confirm, or No to say your email address again.`,
+          `I heard your identifier as ${normalized}. Spelled out: ${spelledOut}. Is this correct? Say Yes to confirm, or No to re-enter.`,
           () => startVoiceListening()
         );
         return true;
@@ -597,7 +600,7 @@ export function LoginScreen() {
             setVoiceStep('ask_email');
             voiceStepRef.current = 'ask_email';
             speakAndRecord(
-              `${check.error} Please say your registered email address again.`,
+              `${check.error} Please say your registered email address or roll number again.`,
               () => startVoiceListening()
             );
             return true;
@@ -610,7 +613,7 @@ export function LoginScreen() {
           }, 50);
 
           speakAndRecord(
-            'Email confirmed. Step 2 of 4: Secure password entry. For your security, passwords are never spoken aloud. The password field is now focused. Please type your password on your keyboard and press Enter when finished, or say Continue after typing.',
+            'Identifier confirmed. Step 2 of 4: Secure password entry. For your security, passwords are never spoken aloud. The password field is now focused. Please type your password on your keyboard and press Enter when finished, or say Continue after typing.',
             () => startVoiceListening()
           );
           return true;
@@ -619,14 +622,14 @@ export function LoginScreen() {
         if (confirmation === 'no') {
           setVoiceStep('ask_email');
           voiceStepRef.current = 'ask_email';
-          speakAndRecord('Let us try again. Please say your registered email address clearly.', () =>
+          speakAndRecord('Let us try again. Please say your registered email address or roll number clearly.', () =>
             startVoiceListening()
           );
           return true;
         }
 
         speakAndRecord(
-          `Please say Yes to confirm ${identifierRef.current}, or say No to re-enter your email address.`,
+          `Please say Yes to confirm ${identifierRef.current}, or say No to re-enter.`,
           () => startVoiceListening()
         );
         return true;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAccessibility } from '../context/AccessibilityContext.tsx';
 import { AudioToolbar } from '../components/AudioToolbar.tsx';
 import {
@@ -18,8 +18,22 @@ import {
   Radio,
   BookOpen,
   ArrowRight,
-  Mic
+  Mic,
+  HelpCircle
 } from 'lucide-react';
+
+export const SCREEN_READER_VOICE_GUIDE =
+  'Welcome to Screen Reader Settings. You can control every button and audio parameter on this page using your voice. ' +
+  'To adjust speech rate, say: "Set speech speed to 1.5x", "Speed 2x", "Speed 0.5x", "Faster speech", or "Slower speech". ' +
+  'To adjust voice pitch, say: "Set pitch to 1.2", "Higher pitch", "Lower pitch", or "Normal pitch". ' +
+  'To adjust speech volume, say: "Set volume to 80 percent" or "Volume 100". ' +
+  'To test audio playback, say: "Test voice" or "Play test". ' +
+  'To save your preferences, say: "Save preferences" or "Save settings". ' +
+  'To reset all speech settings to defaults, say: "Restore defaults". ' +
+  'To toggle automatic question reading, say: "Toggle question reading". ' +
+  'To toggle automatic option reading, say: "Toggle option reading". ' +
+  'To switch to visual contrast settings, say: "Open accessibility settings". ' +
+  'Say "Stop" at any time to silence speech, or say "Read voice commands" to hear this guide again.';
 
 export function ScreenReaderSettingsScreen() {
   const {
@@ -51,6 +65,16 @@ export function ScreenReaderSettingsScreen() {
   const [pitch, setPitch] = useState<number>(settings.speechPitch || 1.0);
   const [volume, setVolume] = useState<number>(settings.speechVolume ?? 1.0);
   const [recognitionLang, setRecognitionLang] = useState<string>(settings.recognitionLang || 'en-IN');
+  const hasAnnouncedIntroRef = useRef<boolean>(false);
+
+  // Automatically read out the voice description on entry so blind candidates know all voice commands
+  useEffect(() => {
+    if (!hasAnnouncedIntroRef.current) {
+      hasAnnouncedIntroRef.current = true;
+      announce(SCREEN_READER_VOICE_GUIDE, 'polite');
+      speakText(SCREEN_READER_VOICE_GUIDE);
+    }
+  }, [announce, speakText]);
 
   // Audio Reading Preferences
   const [autoReadAloud, setAutoReadAloud] = useState<boolean>(Boolean(settings.autoReadAloud));
@@ -257,6 +281,111 @@ export function ScreenReaderSettingsScreen() {
         }
       }
 
+      // Faster / Slower speech aliases
+      if (clean === 'faster speech' || clean === 'increase speed' || clean === 'read faster' || clean === 'speed up') {
+        const nextRate = Math.min(3.0, Number((rate + 0.25).toFixed(2)));
+        handleRateSelect(nextRate);
+        return true;
+      }
+      if (clean === 'slower speech' || clean === 'decrease speed' || clean === 'read slower' || clean === 'slow down') {
+        const nextRate = Math.max(0.5, Number((rate - 0.25).toFixed(2)));
+        handleRateSelect(nextRate);
+        return true;
+      }
+
+      // Higher / Lower pitch aliases
+      if (clean === 'higher pitch' || clean === 'increase pitch') {
+        const newPitch = Math.min(1.5, Number((pitch + 0.1).toFixed(1)));
+        handlePitchChange(newPitch);
+        const msg = `Speech pitch increased to ${newPitch}.`;
+        announce(msg, 'polite');
+        speakText(msg);
+        return true;
+      }
+      if (clean === 'lower pitch' || clean === 'decrease pitch') {
+        const newPitch = Math.max(0.5, Number((pitch - 0.1).toFixed(1)));
+        handlePitchChange(newPitch);
+        const msg = `Speech pitch decreased to ${newPitch}.`;
+        announce(msg, 'polite');
+        speakText(msg);
+        return true;
+      }
+      if (clean === 'normal pitch' || clean === 'reset pitch') {
+        handlePitchChange(1.0);
+        const msg = `Speech pitch reset to normal 1.0.`;
+        announce(msg, 'polite');
+        speakText(msg);
+        return true;
+      }
+
+      // Question Auto-Reading Toggle
+      if (
+        clean === 'toggle question reading' ||
+        clean === 'read questions automatically' ||
+        clean === 'dont read questions automatically' ||
+        clean === 'do not read questions automatically' ||
+        clean === 'auto read questions on' ||
+        clean === 'auto read questions off'
+      ) {
+        const nextVal = clean.includes('off') || clean.includes('dont') || clean.includes('do not') ? false : clean.includes('on') ? true : !readQuestionAutomatically;
+        setReadQuestionAutomatically(nextVal);
+        updateSettings({ readQuestionAutomatically: nextVal });
+        const msg = `Automatic question reading ${nextVal ? 'enabled' : 'disabled'}.`;
+        announce(msg, 'polite');
+        speakText(msg);
+        return true;
+      }
+
+      // Option Auto-Reading Toggle
+      if (
+        clean === 'toggle option reading' ||
+        clean === 'read options automatically' ||
+        clean === 'dont read options automatically' ||
+        clean === 'do not read options automatically' ||
+        clean === 'auto read options on' ||
+        clean === 'auto read options off'
+      ) {
+        const nextVal = clean.includes('off') || clean.includes('dont') || clean.includes('do not') ? false : clean.includes('on') ? true : !readOptionsAutomatically;
+        setReadOptionsAutomatically(nextVal);
+        updateSettings({ readOptionsAutomatically: nextVal });
+        const msg = `Automatic option reading ${nextVal ? 'enabled' : 'disabled'}.`;
+        announce(msg, 'polite');
+        speakText(msg);
+        return true;
+      }
+
+      // Read Voice Commands & Guidance (Aloud for Blind Candidates)
+      if (
+        clean === 'read voice commands' ||
+        clean === 'voice commands' ||
+        clean === 'read commands' ||
+        clean === 'explain page' ||
+        clean === 'explain this page' ||
+        clean === 'help' ||
+        clean === 'what can i say' ||
+        clean === 'list commands' ||
+        clean === 'read instructions' ||
+        clean === 'voice instructions' ||
+        clean === 'voice guide'
+      ) {
+        announce(SCREEN_READER_VOICE_GUIDE, 'polite');
+        speakText(SCREEN_READER_VOICE_GUIDE);
+        return true;
+      }
+
+      // Quick Switch to Visual Accessibility Settings
+      if (
+        clean === 'open accessibility settings' ||
+        clean === 'go to accessibility settings' ||
+        clean === 'accessibility settings' ||
+        clean === 'visual settings' ||
+        clean === 'contrast settings' ||
+        clean === 'theme settings'
+      ) {
+        navigateTo('accessibility_settings');
+        return true;
+      }
+
       // Test voice
       if (clean === 'test voice' || clean === 'test speech' || clean === 'play test' || clean === 'sample voice') {
         handleTestVoice();
@@ -299,7 +428,25 @@ export function ScreenReaderSettingsScreen() {
     return () => {
       unregister();
     };
-  }, [registerVoiceHandler, handleRateSelect, handlePitchChange, handleTestVoice, handleResetDefaults, handleSavePreferences, stopSpeaking, pauseSpeaking, resumeSpeaking, announce, speakText]);
+  }, [
+    registerVoiceHandler,
+    handleRateSelect,
+    handlePitchChange,
+    handleTestVoice,
+    handleResetDefaults,
+    handleSavePreferences,
+    stopSpeaking,
+    pauseSpeaking,
+    resumeSpeaking,
+    announce,
+    speakText,
+    navigateTo,
+    rate,
+    pitch,
+    readQuestionAutomatically,
+    readOptionsAutomatically,
+    updateSettings
+  ]);
 
   const pageInstructionText =
     'Dedicated Screen Reader Settings page. Adjust speech rate between 0.5x and 3.0x, customize voice pitch, choose your preferred browser voice model, configure automatic question and option reading, and test audio playback.';
@@ -340,6 +487,102 @@ export function ScreenReaderSettingsScreen() {
         </div>
       )}
 
+      {/* Dedicated Voice Controls & Spoken Guidance Banner (WCAG AAA & Blind-First Voice Accessible) */}
+      <section
+        aria-labelledby="sr-voice-control-heading"
+        className="p-5 bg-gradient-to-r from-blue-50 via-indigo-50/40 to-blue-50 rounded-2xl border-2 border-[#1749E8]/40 shadow-sm"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D9E1EF]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#1749E8] text-white flex items-center justify-center shadow-sm">
+              <Mic className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 id="sr-voice-control-heading" className="text-base font-extrabold text-[#172033]">
+                  Voice Controls &amp; Spoken Audio Commands
+                </h2>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#1749E8] text-white">
+                  Hands-Free Voice Active
+                </span>
+              </div>
+              <p className="text-xs text-[#53627A]">
+                Blind candidates can say any command listed below to adjust speech speed, pitch, volume, test playback, and save preferences.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                announce(SCREEN_READER_VOICE_GUIDE, 'polite');
+                speakText(SCREEN_READER_VOICE_GUIDE);
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#1749E8] hover:bg-[#123BB8] text-white text-xs font-bold rounded-lg shadow-sm focus:ring-2 focus:ring-[#1749E8] transition-colors"
+              aria-label="Read screen reader voice commands guide aloud"
+            >
+              <Volume2 className="w-4 h-4" />
+              <span>Listen to Voice Guide Aloud</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateTo('accessibility_settings')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#F8F9FB] text-[#1749E8] text-xs font-bold rounded-lg border border-[#D9E1EF] transition-colors"
+              aria-label="Switch to Visual Accessibility Settings"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Visual &amp; Contrast Settings</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Categorized Spoken Commands Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-4 text-xs">
+          <div className="p-3 bg-white rounded-xl border border-[#D9E1EF] space-y-1.5">
+            <div className="font-bold text-[#172033] flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5 text-[#1749E8]" />
+              <span>Speech Speed &amp; Rate</span>
+            </div>
+            <p className="text-[11px] text-[#53627A]">Say any speed command:</p>
+            <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Speed 1.5x&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Speed 2x&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Faster speech&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Slower speech&rdquo;</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-white rounded-xl border border-[#D9E1EF] space-y-1.5">
+            <div className="font-bold text-[#172033] flex items-center gap-1.5">
+              <Headphones className="w-3.5 h-3.5 text-[#1749E8]" />
+              <span>Pitch, Volume &amp; Testing</span>
+            </div>
+            <p className="text-[11px] text-[#53627A]">Tone &amp; test controls:</p>
+            <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Set pitch to 1.2&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Set volume to 80 percent&rdquo;</span>
+              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-bold">Say: &ldquo;Test voice&rdquo;</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-white rounded-xl border border-[#D9E1EF] space-y-1.5">
+            <div className="font-bold text-[#172033] flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-[#1749E8]" />
+              <span>Saving, Reading &amp; Defaults</span>
+            </div>
+            <p className="text-[11px] text-[#53627A]">Save or toggle reading:</p>
+            <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-bold">Say: &ldquo;Save preferences&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-[#1749E8] border border-blue-200 rounded font-bold">Say: &ldquo;Toggle question reading&rdquo;</span>
+              <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 rounded font-bold">Say: &ldquo;Restore defaults&rdquo;</span>
+              <span className="px-2 py-0.5 bg-red-50 text-red-800 border border-red-200 rounded font-bold">Say: &ldquo;Stop&rdquo;</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 2. Audio Playback Control Bar */}
       <section
         aria-labelledby="audio-controls-heading"
@@ -361,10 +604,11 @@ export function ScreenReaderSettingsScreen() {
               type="button"
               onClick={handleTestVoice}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1749E8] text-white text-xs font-bold hover:bg-[#123BB8] transition-colors focus:ring-2 focus:ring-[#1749E8] focus:outline-none"
-              aria-label="Test current screen reader voice"
+              aria-label="Test current screen reader voice. Voice command: Say 'Test voice'"
             >
               <Play className="w-3.5 h-3.5" />
               <span>Test Voice</span>
+              <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded ml-1">Say: &ldquo;Test voice&rdquo;</span>
             </button>
 
             {/* Repeat Last Announcement */}
@@ -372,10 +616,11 @@ export function ScreenReaderSettingsScreen() {
               type="button"
               onClick={handleRepeatLast}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#EEF4FF] text-[#1749E8] text-xs font-bold border border-[#D9E1EF] hover:bg-[#E0EBFF] transition-colors focus:ring-2 focus:ring-[#1749E8] focus:outline-none"
-              aria-label="Repeat last screen reader announcement"
+              aria-label="Repeat last screen reader announcement. Voice command: Say 'Repeat'"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Repeat Last</span>
+              <span className="text-[9px] font-mono font-bold bg-[#1749E8]/10 text-[#1749E8] px-1.5 py-0.5 rounded ml-1">Say: &ldquo;Repeat&rdquo;</span>
             </button>
 
             {/* Pause / Resume */}
@@ -408,10 +653,11 @@ export function ScreenReaderSettingsScreen() {
               type="button"
               onClick={stopSpeaking}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-700 text-xs font-bold border border-red-200 hover:bg-red-100 transition-colors focus:ring-2 focus:ring-red-500 focus:outline-none"
-              aria-label="Stop speaking immediately"
+              aria-label="Stop speaking immediately. Voice command: Say 'Stop'"
             >
               <Square className="w-3.5 h-3.5" />
               <span>Stop Speech</span>
+              <span className="text-[9px] font-mono font-bold bg-red-200 text-red-900 px-1.5 py-0.5 rounded ml-1">Say: &ldquo;Stop&rdquo;</span>
             </button>
           </div>
         </div>
@@ -458,9 +704,12 @@ export function ScreenReaderSettingsScreen() {
                       : 'border-[#D9E1EF] text-[#172033] hover:border-[#1749E8]/40 hover:bg-[#F8F9FB]'
                   }`}
                   aria-pressed={isActive}
-                  aria-label={`Set speech rate to ${preset}x speed`}
+                  aria-label={`Set speech rate to ${preset}x speed. Voice command: Say 'Speed ${preset}x'`}
                 >
                   <div>{preset}x</div>
+                  <div className="text-[9px] font-mono font-bold text-[#1749E8]">
+                    Say: &ldquo;Speed {preset}x&rdquo;
+                  </div>
                   <span className="text-[10px] font-normal text-[#53627A]">
                     {preset === 0.5 ? 'Slow' : preset === 1.0 ? 'Normal' : preset === 1.5 ? 'Fast' : preset === 2.0 ? 'Very Fast' : 'Max'}
                   </span>
@@ -666,9 +915,14 @@ export function ScreenReaderSettingsScreen() {
           {/* Read question text automatically */}
           <label className="p-3.5 rounded-xl border border-[#D9E1EF] flex items-center justify-between gap-3 cursor-pointer hover:bg-[#F8F9FB] transition-colors">
             <div>
-              <span className="text-xs font-bold text-[#172033] block">
-                Auto-Read Question Text
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#172033] block">
+                  Auto-Read Question Text
+                </span>
+                <span className="text-[10px] font-mono font-bold text-[#1749E8] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                  Say: &ldquo;Toggle question reading&rdquo;
+                </span>
+              </div>
               <span className="text-[11px] text-[#53627A]">
                 Automatically reads the question text aloud whenever navigating to a new question.
               </span>
@@ -687,9 +941,14 @@ export function ScreenReaderSettingsScreen() {
           {/* Read options automatically */}
           <label className="p-3.5 rounded-xl border border-[#D9E1EF] flex items-center justify-between gap-3 cursor-pointer hover:bg-[#F8F9FB] transition-colors">
             <div>
-              <span className="text-xs font-bold text-[#172033] block">
-                Auto-Read Question Options (A, B, C, D)
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#172033] block">
+                  Auto-Read Question Options (A, B, C, D)
+                </span>
+                <span className="text-[10px] font-mono font-bold text-[#1749E8] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                  Say: &ldquo;Toggle option reading&rdquo;
+                </span>
+              </div>
               <span className="text-[11px] text-[#53627A]">
                 Sequentially announces all four multiple-choice options immediately following the question text.
               </span>
@@ -833,32 +1092,40 @@ export function ScreenReaderSettingsScreen() {
 
       {/* 7. Action Footer: Save Preferences & Reset */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[#D9E1EF]">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={handleSavePreferences}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1749E8] text-white font-bold text-xs hover:bg-[#123BB8] transition-colors focus:ring-2 focus:ring-[#1749E8] focus:outline-none shadow-xs"
+            aria-label="Save preferences. Voice command: Say 'Save preferences'"
           >
             <Save className="w-4 h-4" />
             <span>Save Preferences</span>
+            <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded">Say: &ldquo;Save preferences&rdquo;</span>
           </button>
 
           <button
             type="button"
             onClick={handleResetDefaults}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#53627A] font-bold text-xs border border-[#D9E1EF] hover:bg-[#F8F9FB] transition-colors focus:ring-2 focus:ring-[#1749E8] focus:outline-none"
+            aria-label="Reset to default settings. Voice command: Say 'Restore defaults'"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset to Defaults</span>
+            <span className="text-[9px] font-mono font-bold bg-slate-100 text-[#53627A] px-1.5 py-0.5 rounded">Say: &ldquo;Restore defaults&rdquo;</span>
           </button>
         </div>
 
         <button
           type="button"
           onClick={() => navigateTo('accessibility_settings')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1749E8] hover:underline"
+          className="inline-flex items-center gap-2 text-xs font-bold text-[#1749E8] hover:underline"
+          aria-label="Switch to Visual and Contrast Settings. Voice command: Say 'Accessibility Settings'"
         >
           <span>Visual &amp; Contrast Settings (Screen 13)</span>
+          <span className="text-[10px] font-mono font-bold text-[#1749E8] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+            Say: &ldquo;Accessibility Settings&rdquo;
+          </span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAccessibility, ThemeMode, FontSize } from '../context/AccessibilityContext';
 import { AudioToolbar } from '../components/AudioToolbar';
 import { ScreenNavigationDisclaimer } from '../components/ScreenNavigationDisclaimer';
@@ -15,8 +15,26 @@ import {
   Play,
   Pause,
   Square,
-  RotateCcw
+  RotateCcw,
+  Mic,
+  Headphones,
+  Sparkles,
+  HelpCircle,
+  VolumeX,
+  ArrowRight
 } from 'lucide-react';
+
+export const ACCESSIBILITY_VOICE_GUIDE =
+  'Welcome to Accessibility Settings. You can control every button and feature on this page using your voice. ' +
+  'To switch color themes, say: "Standard theme", "High contrast yellow", "Monochrome", or "Soft dark". ' +
+  'To scale text size, say: "Normal font", "Large font", "Extra large font", or "Maximum font". ' +
+  'To toggle dyslexia-friendly typography, say: "Enable dyslexia font" or "Disable dyslexia font". ' +
+  'To configure exam time accommodations, say: "Enable compensatory time" or "Disable compensatory time" for 60-minute PwD sessions. ' +
+  'To test audio playback, say: "Test voice". ' +
+  'To hear your active settings, say: "Read current settings". ' +
+  'To reset all settings to defaults, say: "Reset defaults". ' +
+  'To adjust speech rate and audio, say: "Open screen reader settings". ' +
+  'Say "Stop" at any time to silence speech, or say "Read voice commands" to hear this guide again.';
 
 export const AccessibilitySettingsScreen: React.FC = () => {
   const {
@@ -43,12 +61,26 @@ export const AccessibilitySettingsScreen: React.FC = () => {
     isSpeaking,
     announce,
     registerVoiceHandler,
-    startVoiceListening
+    startVoiceListening,
+    navigateTo,
+    isVoiceListening,
+    isVisionAssistantActive,
+    isBlindMode
   } = useAccessibility();
 
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(settings.voiceURI || 'default');
   const [pitch, setPitch] = useState<number>(settings.speechPitch || 1.0);
+  const hasAnnouncedIntroRef = useRef<boolean>(false);
+
+  // Automatically read out the voice description on entry so blind candidates know all voice commands
+  useEffect(() => {
+    if (!hasAnnouncedIntroRef.current) {
+      hasAnnouncedIntroRef.current = true;
+      announce(ACCESSIBILITY_VOICE_GUIDE, 'polite');
+      speak(ACCESSIBILITY_VOICE_GUIDE);
+    }
+  }, [announce, speak]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -404,7 +436,39 @@ export const AccessibilitySettingsScreen: React.FC = () => {
         return true;
       }
 
-      // 8. Stop / Pause / Resume
+      // 8. Read Voice Commands & Guidance (Aloud for Blind Candidates)
+      if (
+        clean === 'read voice commands' ||
+        clean === 'voice commands' ||
+        clean === 'read commands' ||
+        clean === 'explain page' ||
+        clean === 'explain this page' ||
+        clean === 'help' ||
+        clean === 'what can i say' ||
+        clean === 'list commands' ||
+        clean === 'read instructions' ||
+        clean === 'voice instructions' ||
+        clean === 'voice guide'
+      ) {
+        announce(ACCESSIBILITY_VOICE_GUIDE, 'polite');
+        speak(ACCESSIBILITY_VOICE_GUIDE);
+        return true;
+      }
+
+      // 9. Quick Switch to Screen Reader Settings
+      if (
+        clean === 'open screen reader settings' ||
+        clean === 'go to screen reader settings' ||
+        clean === 'screen reader settings' ||
+        clean === 'open voice settings' ||
+        clean === 'voice settings' ||
+        clean === 'speech settings'
+      ) {
+        navigateTo('screen_reader_settings');
+        return true;
+      }
+
+      // 10. Stop / Pause / Resume
       if (clean === 'stop' || clean === 'stop speaking' || clean === 'stop reading' || clean === 'be quiet') {
         stopSpeaking();
         return true;
@@ -443,7 +507,8 @@ export const AccessibilitySettingsScreen: React.FC = () => {
     announce,
     stopSpeaking,
     pauseSpeaking,
-    resumeSpeaking
+    resumeSpeaking,
+    navigateTo
   ]);
 
   const themes: { id: ThemeMode; label: string; desc: string; sample: string }[] = [
@@ -553,6 +618,104 @@ export const AccessibilitySettingsScreen: React.FC = () => {
         ]}
       />
 
+      {/* Dedicated Voice Controls & Spoken Guidance Banner (WCAG AAA & Blind-First Voice Accessible) */}
+      <section
+        aria-labelledby="voice-control-heading"
+        className="mb-8 p-5 bg-gradient-to-r from-blue-50 via-indigo-50/40 to-blue-50 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 rounded-xl border-2 border-blue-600/40 dark:border-blue-500/40 shadow-sm"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-blue-200 dark:border-blue-900">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-700 text-white flex items-center justify-center shadow-sm">
+              <Mic className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 id="voice-control-heading" className="text-base font-extrabold text-slate-900 dark:text-white">
+                  Voice Controls &amp; Spoken Action Commands
+                </h2>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white">
+                  Hands-Free Voice Active
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                Blind and low-vision candidates can speak the exact voice commands below to control buttons and settings hands-free.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                announce(ACCESSIBILITY_VOICE_GUIDE, 'polite');
+                speak(ACCESSIBILITY_VOICE_GUIDE);
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 transition-colors"
+              aria-label="Read full voice commands guide aloud"
+            >
+              <Volume2 className="w-4 h-4" />
+              <span>Listen to Voice Guide Aloud</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateTo('screen_reader_settings')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-lg border border-blue-300 dark:border-blue-700 transition-colors"
+              aria-label="Switch to Screen Reader Settings"
+            >
+              <Headphones className="w-3.5 h-3.5" />
+              <span>Screen Reader Settings</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Categorized Spoken Commands Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-4 text-xs">
+          <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5">
+            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5 text-blue-600" />
+              <span>Visual Color Themes</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Say any of these phrases to activate:</p>
+            <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded font-bold">Say: &ldquo;Standard theme&rdquo;</span>
+              <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded font-bold">Say: &ldquo;Yellow theme&rdquo;</span>
+              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded font-bold">Say: &ldquo;Monochrome&rdquo;</span>
+              <span className="px-2 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-400 dark:border-slate-600 rounded font-bold">Say: &ldquo;Soft dark&rdquo;</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5">
+            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-blue-600" />
+              <span>Text Scaling &amp; Dyslexia</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Control typography by speaking:</p>
+            <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded font-bold">Say: &ldquo;Normal font&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded font-bold">Say: &ldquo;Large font&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded font-bold">Say: &ldquo;Extra large font&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded font-bold">Say: &ldquo;Maximum font&rdquo;</span>
+              <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800 rounded font-bold">Say: &ldquo;Enable dyslexia font&rdquo;</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1.5">
+            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              <span>Compensatory Time &amp; Audio</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Quick exam &amp; audio controls:</p>
+            <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 rounded font-bold">Say: &ldquo;Enable compensatory time&rdquo;</span>
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 rounded font-bold">Say: &ldquo;Test voice&rdquo;</span>
+              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded font-bold">Say: &ldquo;Reset defaults&rdquo;</span>
+              <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800 rounded font-bold">Say: &ldquo;Stop&rdquo;</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div className="space-y-8">
         {/* Section 1: Color Themes */}
         <section aria-labelledby="theme-heading" className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 p-6 rounded-sm shadow-sm">
@@ -564,32 +727,50 @@ export const AccessibilitySettingsScreen: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {themes.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  setTheme(t.id);
-                  speak(`Theme switched to ${t.label}`);
-                }}
-                className={`p-4 rounded-sm border-2 text-left transition-all focus:ring-3 focus:ring-blue-600 ${theme === t.id
-                    ? 'border-blue-700 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-950/40'
-                    : 'border-slate-300 dark:border-slate-700 hover:border-slate-400'
+            {themes.map((t) => {
+              const voicePhrase =
+                t.id === 'default'
+                  ? 'Standard theme'
+                  : t.id === 'high-contrast-yellow'
+                  ? 'Yellow theme'
+                  : t.id === 'monochrome'
+                  ? 'Monochrome'
+                  : 'Soft dark';
+
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setTheme(t.id);
+                    speak(`Theme switched to ${t.label}`);
+                  }}
+                  className={`p-4 rounded-sm border-2 text-left transition-all focus:ring-3 focus:ring-blue-600 ${
+                    theme === t.id
+                      ? 'border-blue-700 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-950/40'
+                      : 'border-slate-300 dark:border-slate-700 hover:border-slate-400'
                   }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-sm text-slate-900 dark:text-white">{t.label}</span>
-                  {theme === t.id && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-400">
-                      <Check className="w-4 h-4" /> Active
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mb-3">{t.desc}</p>
-                <div className={`p-2 rounded border text-xs font-mono font-bold ${t.sample}`}>
-                  Sample: Staff Selection Commission
-                </div>
-              </button>
-            ))}
+                  aria-label={`${t.label}. Voice command: Say '${voicePhrase}'`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-sm text-slate-900 dark:text-white">{t.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded">
+                        Say: &ldquo;{voicePhrase}&rdquo;
+                      </span>
+                      {theme === t.id && (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-400">
+                          <Check className="w-4 h-4" /> Active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mb-3">{t.desc}</p>
+                  <div className={`p-2 rounded border text-xs font-mono font-bold ${t.sample}`}>
+                    Sample: Staff Selection Commission
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -603,49 +784,73 @@ export const AccessibilitySettingsScreen: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {fontSizes.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => {
-                  setFontSize(f.id);
-                  speak(`Text scale set to ${f.label}`);
-                }}
-                className={`p-3 rounded-sm border-2 text-left transition-all focus:ring-3 focus:ring-blue-600 ${fontSize === f.id
-                    ? 'border-blue-700 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-950/40'
-                    : 'border-slate-300 dark:border-slate-700'
+            {fontSizes.map((f) => {
+              const voicePhrase =
+                f.id === 'normal'
+                  ? 'Normal font'
+                  : f.id === 'large'
+                  ? 'Large font'
+                  : f.id === 'xlarge'
+                  ? 'Extra large font'
+                  : 'Maximum font';
+
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    setFontSize(f.id);
+                    speak(`Text scale set to ${f.label}`);
+                  }}
+                  className={`p-3 rounded-sm border-2 text-left transition-all focus:ring-3 focus:ring-blue-600 ${
+                    fontSize === f.id
+                      ? 'border-blue-700 dark:border-blue-400 bg-blue-50/50 dark:bg-blue-950/40'
+                      : 'border-slate-300 dark:border-slate-700'
                   }`}
-              >
-                <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center justify-between">
-                  <span>{f.label}</span>
-                  {fontSize === f.id && <Check className="w-4 h-4 text-blue-700 dark:text-blue-400" />}
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{f.desc}</div>
-              </button>
-            ))}
+                  aria-label={`${f.label}. Voice command: Say '${voicePhrase}'`}
+                >
+                  <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center justify-between">
+                    <span>{f.label}</span>
+                    {fontSize === f.id && <Check className="w-4 h-4 text-blue-700 dark:text-blue-400" />}
+                  </div>
+                  <div className="mt-1">
+                    <span className="text-[10px] font-mono font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">
+                      Say: &ldquo;{voicePhrase}&rdquo;
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">{f.desc}</div>
+                </button>
+              );
+            })}
           </div>
 
           {/* Dyslexia Toggle */}
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-sm border border-slate-200 dark:border-slate-700">
             <div>
-              <div className="font-bold text-sm text-slate-900 dark:text-white">
-                Dyslexia-Friendly Letter Spacing & Weight (OpenDyslexic / Lucida Sans)
+              <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Dyslexia-Friendly Letter Spacing &amp; Weight (OpenDyslexic / Lucida Sans)</span>
               </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                 Enhances character boundary distinction and reduces symbol rotation confusion.
               </div>
             </div>
-            <button
-              onClick={() => {
-                setDyslexiaFont(!dyslexiaFont);
-                speak(`Dyslexia font ${!dyslexiaFont ? 'enabled' : 'disabled'}`);
-              }}
-              className={`px-4 py-2 text-xs font-bold rounded-sm border focus:ring-2 focus:ring-blue-600 ${dyslexiaFont
-                  ? 'bg-blue-700 text-white border-blue-700'
-                  : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-1 rounded">
+                Say: &ldquo;Enable dyslexia font&rdquo;
+              </span>
+              <button
+                onClick={() => {
+                  setDyslexiaFont(!dyslexiaFont);
+                  speak(`Dyslexia font ${!dyslexiaFont ? 'enabled' : 'disabled'}`);
+                }}
+                className={`px-4 py-2 text-xs font-bold rounded-sm border focus:ring-2 focus:ring-blue-600 ${
+                  dyslexiaFont
+                    ? 'bg-blue-700 text-white border-blue-700'
+                    : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
                 }`}
-            >
-              {dyslexiaFont ? 'Enabled' : 'Disabled'}
-            </button>
+              >
+                {dyslexiaFont ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -852,18 +1057,23 @@ export const AccessibilitySettingsScreen: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setCompensatoryTime(!compensatoryTime);
-                speak(`Compensatory time ${!compensatoryTime ? 'activated: 60 minutes per session' : 'deactivated: standard 45 minutes per session'}`);
-              }}
-              className={`px-4 py-2.5 text-xs font-bold rounded-sm border focus:ring-3 focus:ring-blue-600 transition-colors ${compensatoryTime
-                  ? 'bg-emerald-700 text-white border-emerald-700'
-                  : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
-                }`}
-            >
-              {compensatoryTime ? '60 Mins (PwD Active)' : '45 Mins (Standard)'}
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-1 rounded">
+                Say: &ldquo;Enable compensatory time&rdquo;
+              </span>
+              <button
+                onClick={() => {
+                  setCompensatoryTime(!compensatoryTime);
+                  speak(`Compensatory time ${!compensatoryTime ? 'activated: 60 minutes per session' : 'deactivated: standard 45 minutes per session'}`);
+                }}
+                className={`px-4 py-2.5 text-xs font-bold rounded-sm border focus:ring-3 focus:ring-blue-600 transition-colors ${compensatoryTime
+                    ? 'bg-emerald-700 text-white border-emerald-700'
+                    : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
+                  }`}
+              >
+                {compensatoryTime ? '60 Mins (PwD Active)' : '45 Mins (Standard)'}
+              </button>
+            </div>
           </div>
         </section>
 

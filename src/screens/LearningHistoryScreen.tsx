@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { AudioToolbar } from '../components/AudioToolbar';
 import {
@@ -26,6 +26,16 @@ import {
   Sparkles
 } from 'lucide-react';
 import { TranscriptLogEntry, TranscriptPrivacySettings } from '../db/database';
+
+export const TRANSCRIPT_WORKSPACE_VOICE_GUIDE =
+  'Welcome to Candidate Transcript Workspace. Everything you say will be transcribed into text in real time. ' +
+  'Say "Start Recording" to begin — everything you speak is captured as text until you say "Stop Recording". ' +
+  'Say "Copy" or press Control C to copy your transcript to clipboard. ' +
+  'Say "Read transcript" to hear your text. ' +
+  'Say "Save transcript" to save to your account. ' +
+  'Say "Export transcript" to download as a text file. ' +
+  'Say "Clear transcript" to erase and start fresh. ' +
+  'Say "Help" for voice instructions.';
 
 interface HistoryRecord {
   id: string;
@@ -177,7 +187,6 @@ export const LearningHistoryScreen: React.FC = () => {
   const [liveTranscript, setLiveTranscript] = useState<string>('');
   const [isReadingTranscript, setIsReadingTranscript] = useState<boolean>(false);
   const [isSavingTranscript, setIsSavingTranscript] = useState<boolean>(false);
-
   const liveTranscriptRef = useRef(liveTranscript);
   liveTranscriptRef.current = liveTranscript;
 
@@ -186,6 +195,17 @@ export const LearningHistoryScreen: React.FC = () => {
 
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+
+  const hasAnnouncedIntroRef = useRef<boolean>(false);
+
+  // Auto-announce description on screen entrance for visually impaired candidates
+  useEffect(() => {
+    if (!hasAnnouncedIntroRef.current) {
+      hasAnnouncedIntroRef.current = true;
+      announce(TRANSCRIPT_WORKSPACE_VOICE_GUIDE, 'polite');
+      speakText(TRANSCRIPT_WORKSPACE_VOICE_GUIDE);
+    }
+  }, [announce, speakText]);
 
   // Transcript state
   const [transcripts, setTranscripts] = useState<TranscriptLogEntry[]>([]);
@@ -203,29 +223,41 @@ export const LearningHistoryScreen: React.FC = () => {
 
   // Workspace Actions
   const handleStartRecording = useCallback(() => {
+    setActiveTab('workspace');
     setRecordingState('recording');
     startVoiceListening();
     playBeacon('listening');
-    announce('Live dictation started. Speak into your microphone now.', 'polite');
-  }, [startVoiceListening, playBeacon, announce]);
+    const msg = 'Live dictation started. Speak into your microphone now. Say "Stop Recording" when done.';
+    announce(msg, 'polite');
+    speakText(msg);
+  }, [startVoiceListening, playBeacon, announce, speakText]);
 
   const handleStopRecording = useCallback(() => {
     setRecordingState('idle');
     playBeacon('success');
-    announce('Live dictation stopped.', 'polite');
-  }, [playBeacon, announce]);
+    const text = liveTranscriptRef.current.trim();
+    const wordCount = text ? text.split(/\s+/).length : 0;
+    const stopMsg = `Recording stopped. ${wordCount} ${wordCount === 1 ? 'word' : 'words'} transcribed. Say "Copy" to copy your text, or "Read transcript" to hear it.`;
+    announce(stopMsg, 'polite');
+    speakText(stopMsg);
+  }, [playBeacon, announce, speakText]);
+
+
+
 
   const handlePauseRecording = useCallback(() => {
     setRecordingState('paused');
     announce('Live dictation paused.', 'polite');
-  }, [announce]);
+    speakText('Live dictation paused. Say "Resume Recording" to continue.');
+  }, [announce, speakText]);
 
   const handleResumeRecording = useCallback(() => {
     setRecordingState('recording');
     startVoiceListening();
     playBeacon('listening');
     announce('Live dictation resumed. Continue speaking.', 'polite');
-  }, [startVoiceListening, playBeacon, announce]);
+    speakText('Live dictation resumed. Continue speaking.');
+  }, [startVoiceListening, playBeacon, announce, speakText]);
 
   const handleSaveTranscript = useCallback(async () => {
     const text = liveTranscriptRef.current.trim();
@@ -330,13 +362,63 @@ export const LearningHistoryScreen: React.FC = () => {
     announce('Live transcript cleared.', 'polite');
   }, [announce]);
 
+  // Ctrl+C keyboard shortcut to copy transcript
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+        const activeEl = document.activeElement;
+        const isInTextField = activeEl?.tagName === 'TEXTAREA' || activeEl?.tagName === 'INPUT';
+        if (isInTextField) {
+          const input = activeEl as HTMLInputElement | HTMLTextAreaElement;
+          // If candidate selected specific text, let native browser copy handle that selection
+          if (input.selectionStart !== input.selectionEnd) {
+            return;
+          }
+        }
+        e.preventDefault();
+        handleCopyTranscript();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCopyTranscript]);
+
   // Contextual Screen Voice Handler
   useEffect(() => {
     const unregister = registerVoiceHandler((rawTranscript: string) => {
       const clean = rawTranscript.toLowerCase().trim();
 
-      // Workspace voice controls
-      if (clean === 'start recording' || clean === 'start dictation' || clean === 'start recording transcript') {
+      // CRITICAL: When recording mode is active, transcribe ALL spoken words until "Stop Recording"
+      if (recordingStateRef.current === 'recording') {
+        const isStop =
+          clean === 'stop recording' ||
+          clean === 'stop' ||
+          clean === 'stop dictation' ||
+          clean === 'finish recording' ||
+          clean === 'finish dictation' ||
+          clean === 'end recording' ||
+          clean === 'done recording' ||
+          clean === 'halt recording' ||
+          clean === 'vision stop recording' ||
+          clean === 'hey vision stop recording';
+
+        if (isStop) {
+          handleStopRecording();
+          return true;
+        }
+
+        if (clean === 'pause recording' || clean === 'pause dictation') {
+          handlePauseRecording();
+          return true;
+        }
+
+        // Transcribe everything spoken into the live editor
+        setLiveTranscript((prev) => (prev ? `${prev} ${rawTranscript}` : rawTranscript));
+        return true;
+      }
+
+      // Voice commands when not actively recording
+      if (clean === 'start recording' || clean === 'start dictation' || clean === 'start recording transcript' || clean === 'begin recording') {
         handleStartRecording();
         return true;
       }
@@ -356,7 +438,7 @@ export const LearningHistoryScreen: React.FC = () => {
         handleSaveTranscript();
         return true;
       }
-      if (clean === 'copy transcript' || clean === 'copy text' || clean === 'copy to clipboard') {
+      if (clean === 'copy' || clean === 'copy transcript' || clean === 'copy text' || clean === 'copy that' || clean === 'copy notes' || clean === 'copy all' || clean === 'copy to clipboard' || clean === 'copy transcript to clipboard') {
         handleCopyTranscript();
         return true;
       }
@@ -384,6 +466,17 @@ export const LearningHistoryScreen: React.FC = () => {
         handleClearLiveTranscript();
         return true;
       }
+      if (
+        clean === 'read voice commands' ||
+        clean === 'explain page' ||
+        clean === 'voice guide' ||
+        clean === 'help' ||
+        clean === 'voice commands'
+      ) {
+        announce(TRANSCRIPT_WORKSPACE_VOICE_GUIDE, 'polite');
+        speakText(TRANSCRIPT_WORKSPACE_VOICE_GUIDE);
+        return true;
+      }
 
       // Tab navigation commands
       if (clean === 'open workspace' || clean === 'dictation workspace' || clean === 'live recording') {
@@ -407,12 +500,6 @@ export const LearningHistoryScreen: React.FC = () => {
         return true;
       }
 
-      // If recording is active in workspace and not a command, append words!
-      if (activeTabRef.current === 'workspace' && recordingStateRef.current === 'recording') {
-        setLiveTranscript((prev) => (prev ? `${prev} ${rawTranscript}` : rawTranscript));
-        return true;
-      }
-
       return false;
     });
 
@@ -431,6 +518,7 @@ export const LearningHistoryScreen: React.FC = () => {
     handleStopReading,
     handleClearLiveTranscript,
     registerVoiceHandler,
+    announce,
     speakText
   ]);
 
@@ -911,26 +999,32 @@ export const LearningHistoryScreen: React.FC = () => {
                   Transcript Workspace Voice Commands
                 </span>
                 <p className="text-[#334155] leading-relaxed">
-                  Say <strong>"Hey Vision"</strong> followed by any of these commands:
+                  Say <strong>"Hey Vision"</strong> followed by any of these commands, or press <kbd className="px-1.5 py-0.5 rounded bg-white border border-[#D0DEFF] font-sans">Ctrl+C</kbd> to copy:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 font-mono text-[11px] text-[#1E3A8A]">
                   <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
                     "Start recording" / "Start dictation"
                   </div>
                   <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
-                    "Stop recording" / "Stop dictation"
+                    "Stop recording" (ends transcription)
                   </div>
                   <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
                     "Pause recording" / "Resume recording"
                   </div>
                   <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
-                    "Save transcript" / "Save text"
+                    "Copy" / "Copy transcript" (also Ctrl+C)
                   </div>
                   <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
-                    "Copy transcript" / "Copy to clipboard"
+                    "Save transcript" / "Export transcript"
                   </div>
                   <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
-                    "Read transcript" / "Stop reading"
+                    "Read transcript aloud" / "Stop reading"
+                  </div>
+                  <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
+                    "Clear transcript"
+                  </div>
+                  <div className="bg-white/80 p-2 rounded border border-[#D0DEFF]">
+                    "Help" / "Voice commands"
                   </div>
                 </div>
               </div>

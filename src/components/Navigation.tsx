@@ -156,14 +156,25 @@ export function Navigation({ onOpenHelp }: NavigationProps) {
             <ul className="space-y-1" role="list">
               {learningMasteryItems.map((item) => {
                 const isActive = currentScreen === item.id;
+                const isTranscript = item.id === 'learning_history';
                 return (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => handleNavClick(item.id)}
                       aria-current={isActive ? 'page' : undefined}
-                      aria-label={item.label}
-                      title={collapsed ? item.label : undefined}
+                      aria-label={
+                        isTranscript
+                          ? "Transcript Workspace. Say 'Open Transcript Workspace' or 'Transcript Workspace' to navigate by voice."
+                          : item.label
+                      }
+                      title={
+                        isTranscript
+                          ? 'Voice command: Say "Open Transcript Workspace"'
+                          : collapsed
+                          ? item.label
+                          : undefined
+                      }
                       className={`w-full flex items-center transition-colors group relative rounded-lg text-left ${
                         collapsed
                           ? 'justify-center p-2.5'
@@ -252,7 +263,8 @@ export function Navigation({ onOpenHelp }: NavigationProps) {
             type="button"
             onClick={() => handleNavClick('accessibility_settings')}
             aria-current={currentScreen === 'accessibility_settings' ? 'page' : undefined}
-            title={collapsed ? 'Accessibility Settings' : undefined}
+            aria-label="Accessibility Settings. Say 'Open Accessibility Settings' or 'Accessibility Settings' to navigate by voice."
+            title={collapsed ? 'Accessibility Settings (Voice: "Accessibility Settings")' : 'Voice command: Say "Accessibility Settings"'}
             className={`w-full flex items-center transition-colors group relative rounded-lg text-left ${
               collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2 text-xs font-semibold'
             } ${
@@ -265,7 +277,12 @@ export function Navigation({ onOpenHelp }: NavigationProps) {
               <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#38BDF8] rounded-r" aria-hidden="true" />
             )}
             <Sliders className={`w-4 h-4 shrink-0 ${currentScreen === 'accessibility_settings' ? 'text-[#38BDF8]' : 'text-[#93C5FD] group-hover:text-white'}`} />
-            {!collapsed && <span className="truncate">Accessibility Settings</span>}
+            {!collapsed && (
+              <div className="flex flex-col min-w-0">
+                <span className="truncate font-semibold">Accessibility Settings</span>
+                <span className="text-[10px] text-[#BAE6FD] font-mono tracking-tight opacity-90 truncate">Say: &ldquo;Accessibility Settings&rdquo;</span>
+              </div>
+            )}
           </button>
 
           {/* Screen Reader Settings (Dedicated Screen) */}
@@ -273,7 +290,8 @@ export function Navigation({ onOpenHelp }: NavigationProps) {
             type="button"
             onClick={() => handleNavClick('screen_reader_settings')}
             aria-current={currentScreen === 'screen_reader_settings' ? 'page' : undefined}
-            title={collapsed ? 'Screen Reader Settings' : undefined}
+            aria-label="Screen Reader Settings. Say 'Open Screen Reader Settings' or 'Screen Reader Settings' to navigate by voice."
+            title={collapsed ? 'Screen Reader Settings (Voice: "Screen Reader Settings")' : 'Voice command: Say "Screen Reader Settings"'}
             className={`w-full flex items-center transition-colors group relative rounded-lg text-left ${
               collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2 text-xs font-semibold'
             } ${
@@ -286,7 +304,12 @@ export function Navigation({ onOpenHelp }: NavigationProps) {
               <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#38BDF8] rounded-r" aria-hidden="true" />
             )}
             <Headphones className={`w-4 h-4 shrink-0 ${currentScreen === 'screen_reader_settings' ? 'text-[#38BDF8]' : 'text-[#93C5FD] group-hover:text-white'}`} />
-            {!collapsed && <span className="truncate">Screen Reader Settings</span>}
+            {!collapsed && (
+              <div className="flex flex-col min-w-0">
+                <span className="truncate font-semibold">Screen Reader Settings</span>
+                <span className="text-[10px] text-[#BAE6FD] font-mono tracking-tight opacity-90 truncate">Say: &ldquo;Screen Reader Settings&rdquo;</span>
+              </div>
+            )}
           </button>
 
           {/* Help & Support */}

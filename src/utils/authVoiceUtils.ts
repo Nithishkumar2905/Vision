@@ -36,6 +36,162 @@ const SPOKEN_NUMBER_WORDS: Record<string, string> = {
 };
 
 /**
+ * Phonetic dictionary mapping speech-recognition distortions to correctly
+ * spelled Indian proper names and surnames.
+ */
+export const PHONETIC_NAME_MAP: Record<string, string> = {
+  'ash wind': 'Ashwin',
+  'ash win': 'Ashwin',
+  'aswin': 'Ashwin',
+  'ashwan': 'Ashwin',
+  'ashwinn': 'Ashwin',
+  'ash wine': 'Ashwin',
+  'ash wing': 'Ashwin',
+  'as win': 'Ashwin',
+  'ashwin': 'Ashwin',
+  'ra vee': 'Ravi',
+  'robbie': 'Ravi',
+  'ravii': 'Ravi',
+  'ravi': 'Ravi',
+  'pree ya': 'Priya',
+  'preya': 'Priya',
+  'priya': 'Priya',
+  'rah ul': 'Rahul',
+  'raahul': 'Rahul',
+  'rahul': 'Rahul',
+  'am it': 'Amit',
+  'ahmit': 'Amit',
+  'amit': 'Amit',
+  'soo raj': 'Suraj',
+  'su raj': 'Suraj',
+  'suraj': 'Suraj',
+  'san jay': 'Sanjay',
+  'sun jay': 'Sanjay',
+  'sanjay': 'Sanjay',
+  'an kit': 'Ankit',
+  'ankit': 'Ankit',
+  'ad it ya': 'Aditya',
+  'aditya': 'Aditya',
+  'ar jun': 'Arjun',
+  'arjun': 'Arjun',
+  'ro hit': 'Rohit',
+  'rohit': 'Rohit',
+  'ni tin': 'Nitin',
+  'nitin': 'Nitin',
+  'ka vya': 'Kavya',
+  'kavya': 'Kavya',
+  'poo ja': 'Pooja',
+  'puja': 'Pooja',
+  'pooja': 'Pooja',
+  'di vya': 'Divya',
+  'divya': 'Divya',
+  'mee na': 'Meena',
+  'meena': 'Meena',
+  'vi nay': 'Vinay',
+  'vinay': 'Vinay',
+  'su neel': 'Sunil',
+  'suneel': 'Sunil',
+  'sunil': 'Sunil',
+  'mah esh': 'Mahesh',
+  'mahesh': 'Mahesh',
+  'su resh': 'Suresh',
+  'suresh': 'Suresh',
+  'ra mesh': 'Ramesh',
+  'ramesh': 'Ramesh',
+  'na resh': 'Naresh',
+  'naresh': 'Naresh',
+  'mu kesh': 'Mukesh',
+  'mukesh': 'Mukesh',
+  'la kshmi': 'Lakshmi',
+  'laxmi': 'Lakshmi',
+  'lakshmi': 'Lakshmi',
+  'aa rav': 'Aarav',
+  'a rav': 'Aarav',
+  'aaraav': 'Aarav',
+  'aarav': 'Aarav',
+  'shar ma': 'Sharma',
+  'sharma': 'Sharma',
+  'ver ma': 'Verma',
+  'verma': 'Verma',
+  'pa tel': 'Patel',
+  'patel': 'Patel',
+  'ku mar': 'Kumar',
+  'kumar': 'Kumar',
+  'singh': 'Singh',
+  'gup ta': 'Gupta',
+  'gupta': 'Gupta'
+};
+
+/**
+ * Normalizes spoken proper names, applying phonetic correction rules
+ * for Indian names that are frequently distorted by standard speech recognition.
+ * Example: "ash wind" -> "Ashwin", "ash win" -> "Ashwin", "ra vee" -> "Ravi"
+ */
+export function normalizeSpokenName(raw: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+
+  let text = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^(my name is|i am|name is|candidate name is|this is|enter name|it is)\s+/i, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) return '';
+
+  // Direct full-phrase phonetic match
+  if (PHONETIC_NAME_MAP[text]) {
+    return PHONETIC_NAME_MAP[text];
+  }
+
+  // Multi-word phrase matching (e.g. "ash wind sharma" -> "Ashwin Sharma")
+  let processed = text;
+  for (const [misheard, corrected] of Object.entries(PHONETIC_NAME_MAP)) {
+    // Only replace multi-word entries or exact words
+    const regex = new RegExp(`\\b${misheard}\\b`, 'gi');
+    if (regex.test(processed)) {
+      processed = processed.replace(regex, corrected);
+    }
+  }
+
+  // Capitalize each token properly
+  return processed
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return '';
+      // If already capitalized by dictionary, keep it
+      if (word[0] === word[0].toUpperCase() && word.slice(1) === word.slice(1).toLowerCase()) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
+/**
+ * Spells out an identifier (email, roll number, or name) letter-by-letter
+ * and symbol-by-symbol for auditory confirmation by visually impaired candidates.
+ * Example: "Ashwin" -> "A, S, H, W, I, N"
+ * Example: "ashwin@gmail.com" -> "A, S, H, W, I, N, at, G, M, A, I, L, dot, C, O, M"
+ */
+export function spellOutIdentifier(identifier: string): string {
+  if (!identifier) return '';
+  const chars = identifier.trim().split('');
+  return chars
+    .map((char) => {
+      if (char === '@') return 'at';
+      if (char === '.') return 'dot';
+      if (char === '-') return 'dash';
+      if (char === '_') return 'underscore';
+      if (char === '+') return 'plus';
+      if (char === ' ') return 'space';
+      return char.toUpperCase();
+    })
+    .join(', ');
+}
+
+/**
  * Formats an Audio CAPTCHA code (e.g. "5 8 3 2" or "5832") into individual
  * spoken digits separated by short pauses:
  * Example: "5832" -> "Five ... Eight ... Three ... Two."
@@ -66,7 +222,7 @@ export function normalizeSpokenEmail(raw: string): string {
 
   // Strip introductory conversational phrases
   text = text
-    .replace(/^(my email address is|my email is|email is|email address|it is|this is|enter|type)\s+/i, '')
+    .replace(/^(my email address is|my email is|email is|email address|it is|this is|enter|type|my identifier is|my name is)\s+/i, '')
     .trim();
 
   // Check if user is speaking an SSC roll number (e.g. "ssc 2026 mts 01")
@@ -74,6 +230,23 @@ export function normalizeSpokenEmail(raw: string): string {
   const rollMatch = rollCheck.match(/^ssc(\d{4})mts(\d{1,4})$/i);
   if (rollMatch) {
     return `SSC-${rollMatch[1]}-MTS-${rollMatch[2].padStart(2, '0')}`;
+  }
+
+  // If input contains no email markers (@, at, dot), check if it's a spoken name
+  const hasEmailMarker = /\b(at|dot|@|\.)\b/i.test(text);
+  if (!hasEmailMarker) {
+    const candidateName = normalizeSpokenName(text);
+    if (candidateName) {
+      return candidateName;
+    }
+  }
+
+  // Pre-process phonetic names before email '@' (e.g. "ash wind at gmail dot com" -> "ashwin at gmail dot com")
+  for (const [misheard, corrected] of Object.entries(PHONETIC_NAME_MAP)) {
+    const rx = new RegExp(`\\b${misheard}\\b`, 'gi');
+    if (rx.test(text)) {
+      text = text.replace(rx, corrected.toLowerCase().replace(/\s+/g, ''));
+    }
   }
 
   // Replace multi-word symbol phrases before single words
@@ -123,8 +296,9 @@ export function validateEmailFormat(email: string): boolean {
 }
 
 /**
- * Validates Login identifier: accepts either a valid email address
- * or an SSC Roll Number (e.g., SSC-2026-MTS-01, SSC-ADMIN-01).
+ * Validates Login identifier: accepts a valid email address,
+ * an SSC Roll Number (e.g., SSC-2026-MTS-01, SSC-ADMIN-01),
+ * or a registered candidate name (e.g., "Ashwin", "Aarav Sharma").
  */
 export function validateLoginIdentifier(identifier: string): { valid: boolean; error?: string } {
   const trimmed = (identifier || '').trim();
@@ -146,8 +320,8 @@ export function validateLoginIdentifier(identifier: string): { valid: boolean; e
     return { valid: true };
   }
 
-  // Check if it's a valid SSC Roll Number format (e.g. SSC-2026-MTS-01 or alphanumeric ID)
-  if (/^[A-Za-z0-9\-_]{4,30}$/.test(trimmed)) {
+  // Check if it's a valid SSC Roll Number or candidate identifier format (3 to 40 characters)
+  if (/^[A-Za-z0-9\-_\s]{3,40}$/.test(trimmed)) {
     return { valid: true };
   }
 
