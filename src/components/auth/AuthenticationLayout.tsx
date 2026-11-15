@@ -1,0 +1,135 @@
+import React from 'react';
+import { Accessibility, CheckCircle2 } from 'lucide-react';
+
+export interface AuthFeatureHighlight {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}
+
+interface AuthenticationLayoutProps {
+  screenBadge: string;
+  headline: string;
+  supportingDescription: string;
+  features: AuthFeatureHighlight[];
+  leftExtra?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+export function AuthenticationLayout({
+  screenBadge,
+  headline,
+  supportingDescription,
+  features,
+  leftExtra,
+  children
+}: AuthenticationLayoutProps) {
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10" id="main-content">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+        {/* Left Section: Welcome & Accessibility Introduction (6 columns on desktop) */}
+        <div className="lg:col-span-6 space-y-6">
+          <div className="p-6 sm:p-8 lg:p-10 rounded-3xl bg-gradient-to-br from-white via-[#F8FAFC] to-[#EEF4FF] dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 border-2 border-[#D9E1EF] dark:border-slate-700 shadow-xs space-y-7 relative overflow-hidden">
+            {/* Brand Identity & Screen Badge */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2.5">
+                <div
+                  className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1749E8] to-[#6241C8] text-white font-black flex items-center justify-center text-sm shadow-xs"
+                  aria-hidden="true"
+                >
+                  APX
+                </div>
+                <span className="text-base font-extrabold tracking-tight text-[#172033] dark:text-white">
+                  ACCESSPREP-X
+                </span>
+              </div>
+
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EEF4FF] dark:bg-blue-950 text-[#1749E8] dark:text-blue-300 text-xs font-bold border border-[#D9E1EF] dark:border-slate-700">
+                {screenBadge}
+              </span>
+            </div>
+
+            {/* Primary Welcome Headline & Supporting Description */}
+            <div className="space-y-3">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#172033] dark:text-white tracking-tight leading-tight">
+                {headline}
+              </h1>
+              <p className="text-base text-[#53627A] dark:text-slate-300 leading-relaxed max-w-xl">
+                {supportingDescription}
+              </p>
+            </div>
+
+            {/* Subtle Abstract Educational & Audio Waveform Visual (Decorative, aria-hidden) */}
+            <div
+              aria-hidden="true"
+              className="p-4 rounded-2xl bg-white/90 dark:bg-slate-800/90 border border-[#D9E1EF] dark:border-slate-700 flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#EEF4FF] dark:bg-blue-950 flex items-center justify-center text-[#1749E8] dark:text-blue-400 font-bold">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M8 7v10M4 10v4M16 7v10M20 10v4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-extrabold text-[#172033] dark:text-white">
+                    Audio-First SSC MTS Preparation
+                  </p>
+                  <p className="text-[11px] text-[#53627A] dark:text-slate-400">
+                    Screen-Reader Native • Voice Guided • Keyboard Accessible
+                  </p>
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-1">
+                <span className="w-1.5 h-4 rounded-full bg-[#1749E8]/40" />
+                <span className="w-1.5 h-7 rounded-full bg-[#1749E8]/70" />
+                <span className="w-1.5 h-5 rounded-full bg-[#6241C8]" />
+                <span className="w-1.5 h-8 rounded-full bg-[#1749E8]" />
+                <span className="w-1.5 h-4 rounded-full bg-[#1749E8]/50" />
+              </div>
+            </div>
+
+            {/* Three Compact Feature Highlights */}
+            <ul className="space-y-3.5" role="list">
+              {features.map((feat, idx) => (
+                <li
+                  key={idx}
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-[#D9E1EF] dark:border-slate-700 shadow-2xs flex items-start gap-3.5"
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl bg-[#EEF4FF] dark:bg-blue-950 text-[#1749E8] dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  >
+                    {feat.icon}
+                  </div>
+                  <div className="space-y-0.5">
+                    <h2 className="text-sm font-extrabold text-[#172033] dark:text-white flex items-center gap-1.5">
+                      <span>{feat.title}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+                    </h2>
+                    <p className="text-xs text-[#53627A] dark:text-slate-300 leading-relaxed">
+                      {feat.description}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            {/* RPwD Act 2016 & WCAG AAA Compliance Note */}
+            <div className="p-4 rounded-2xl bg-[#EEF4FF]/70 dark:bg-slate-800 border border-[#D9E1EF] dark:border-slate-700 flex items-start gap-3">
+              <Accessibility className="w-5 h-5 text-[#1749E8] dark:text-blue-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-xs text-[#53627A] dark:text-slate-300 leading-relaxed">
+                <strong className="font-bold text-[#172033] dark:text-white">RPwD Act 2016 &amp; WCAG 2.1 AAA Compliant:</strong>{' '}
+                Built for independent operation by blind and low-vision candidates with automatic compensatory time and hands-free voice guidance.
+              </p>
+            </div>
+
+            {leftExtra}
+          </div>
+        </div>
+
+        {/* Right Section: Authentication Form Card (6 columns on desktop) */}
+        <div className="lg:col-span-6">{children}</div>
+      </div>
+    </div>
+  );
+}
