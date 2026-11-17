@@ -363,7 +363,8 @@ export type SubjectSelectionResult =
         | 'Numerical and Mathematical Ability'
         | 'Reasoning Ability and Problem Solving'
         | 'General Awareness'
-        | 'English Language and Comprehension';
+        | 'English Language and Comprehension'
+        | 'all';
       label: string;
     };
 

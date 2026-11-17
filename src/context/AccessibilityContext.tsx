@@ -22,6 +22,7 @@ import React, {
 } from 'react';
 import { ScreenId, APPROVED_SCREENS, SCREEN_REGISTRY } from '../types/screens.ts';
 import { User, AccessibilitySettings } from '../db/database.ts';
+export type { User, AccessibilitySettings };
 import { audioBeacon } from '../utils/audioBeacon.ts';
 import { NavigationController } from '../voice/NavigationController.ts';
 import { NavigationContext } from '../voice/commandTypes.ts';
@@ -824,7 +825,7 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
           const seq: ScreenId[] = [
             'dashboard', 'topics', 'voice_practice', 'pilot_demo',
             'mock_exam', 'results', 'ai_tutor', 'revision_planner',
-            'progress', 'topic_mastery', 'accessibility_settings',
+            'progress', 'accessibility_settings',
             'screen_reader_settings', 'learning_history'
           ];
           const curr = seq.indexOf(currentScreenRef.current);
@@ -838,8 +839,10 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
         const navMap: Record<string, ScreenId> = {
           d: 'dashboard', t: 'ai_tutor', p: 'voice_practice',
           m: 'mock_exam', e: 'mock_exam', o: 'pilot_demo',
-          r: 'revision_planner', a: 'accessibility_settings',
-          s: 'screen_reader_settings', g: 'topics', h: 'learning_history'
+          r: 'revision_planner', a: 'progress',
+          s: 'topics', g: 'topics', h: 'learning_history',
+          c: 'accessibility_settings', w: 'screen_reader_settings',
+          u: 'results'
         };
 
         if (navMap[key]) {

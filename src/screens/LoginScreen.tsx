@@ -163,8 +163,6 @@ export function LoginScreen() {
     if (!hasAnnouncedIntroRef.current) {
       hasAnnouncedIntroRef.current = true;
       lastPromptRef.current = LOGIN_INTRO_MESSAGE;
-      announce(LOGIN_INTRO_MESSAGE, 'polite');
-      speakText(LOGIN_INTRO_MESSAGE);
     }
 
     return () => {
@@ -430,7 +428,7 @@ export function LoginScreen() {
     voiceStepRef.current = 'ask_email';
 
     const prompt =
-      'Voice-guided login started. Step 1 of 4: Please say your registered email address or SSC Roll Number clearly.';
+      'Voice-guided login started. Please provide your registered email address and password. Step 1 of 4: Please say your registered email address or candidate roll number clearly.';
     speakAndRecord(prompt, () => {
       startVoiceListening();
     });
@@ -490,6 +488,25 @@ export function LoginScreen() {
     startVoiceListening();
   }, [announce, startVoiceListening]);
 
+  // Start full audio CAPTCHA flow: reads digits aloud, then begins listening for user response
+  const handleStartAudioCaptchaFlow = useCallback(async () => {
+    let curChallenge = challengeRef.current;
+    if (!curChallenge) {
+      curChallenge = await fetchNewChallenge(false, false);
+    }
+    if (!curChallenge) return;
+
+    setCaptchaError(null);
+    setIsCapturingCaptchaVoice(true);
+    isCapturingCaptchaVoiceRef.current = true;
+
+    const spokenDigits = formatCaptchaForSpeech(curChallenge.phrase);
+    const prompt = `Audio verification code: ${spokenDigits} Please say these four digits now, or type them using your keyboard.`;
+    speakAndRecord(prompt, () => {
+      startVoiceListening();
+    });
+  }, [fetchNewChallenge, speakAndRecord, startVoiceListening]);
+
   // Register context-aware voice handler with AccessibilityContext
   useEffect(() => {
     const unregister = registerVoiceHandler(async (rawTranscript: string) => {
@@ -524,6 +541,10 @@ export function LoginScreen() {
       }
       if (cmd === 'read_all_fields') {
         speakAndRecord(LOGIN_FIELDS_SUMMARY, voiceStepRef.current !== 'idle' ? () => startVoiceListening() : undefined);
+        return true;
+      }
+      if (cmd === 'start_audio_captcha') {
+        await handleStartAudioCaptchaFlow();
         return true;
       }
       if (cmd === 'read_captcha') {
@@ -710,9 +731,12 @@ export function LoginScreen() {
     verificationToken
   ]);
 
-  // Global keyboard shortcuts on Login page (Alt+R to Play CAPTCHA, Ctrl+Space / Alt+S to Speak CAPTCHA)
+  // Keyboard shortcuts on Login page
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
       if (e.altKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         handlePlayCaptchaAudio();
@@ -723,13 +747,34 @@ export function LoginScreen() {
         (e.altKey && e.key.toLowerCase() === 's')
       ) {
         e.preventDefault();
-        handleStartCaptchaVoiceCapture();
+        handleStartAudioCaptchaFlow();
+        return;
+      }
+
+      if (!isInput) {
+        const k = e.key.toLowerCase();
+        if (k === 'v') {
+          e.preventDefault();
+          handleStartVoiceLogin();
+        } else if (k === 'c') {
+          e.preventDefault();
+          handleStartAudioCaptchaFlow();
+        } else if (k === 'r') {
+          e.preventDefault();
+          fetchNewChallenge(true, voiceStepRef.current === 'verify_captcha');
+        } else if (k === 'g') {
+          e.preventDefault();
+          navigateTo('register');
+        } else if (k === 'k') {
+          e.preventDefault();
+          handleSwitchToKeyboard();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlePlayCaptchaAudio, handleStartCaptchaVoiceCapture]);
+  }, [handlePlayCaptchaAudio, handleStartCaptchaVoiceCapture, handleStartAudioCaptchaFlow, handleStartVoiceLogin, fetchNewChallenge, navigateTo, handleSwitchToKeyboard]);
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

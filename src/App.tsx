@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { AccessibilityProvider, useAccessibility } from './context/AccessibilityContext';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
+import { PageEntryHelpBanner } from './components/PageEntryHelpBanner';
 
 // Exactly the 16 approved screens
 import { WelcomeScreen } from './screens/WelcomeScreen';
@@ -138,6 +139,7 @@ const MainApp: React.FC = () => {
         {/* Dynamic Main Content & Footer Area (Only this area scrolls vertically) */}
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto focus:outline-none">
           <main id="main-content" className="flex-1 focus:outline-none px-2 sm:px-4 py-4" tabIndex={-1}>
+            <PageEntryHelpBanner />
             {renderActiveScreen()}
           </main>
 

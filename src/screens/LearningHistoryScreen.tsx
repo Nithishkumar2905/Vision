@@ -198,14 +198,12 @@ export const LearningHistoryScreen: React.FC = () => {
 
   const hasAnnouncedIntroRef = useRef<boolean>(false);
 
-  // Auto-announce description on screen entrance for visually impaired candidates
+  // Initialize intro state without auto-blasting speech
   useEffect(() => {
     if (!hasAnnouncedIntroRef.current) {
       hasAnnouncedIntroRef.current = true;
-      announce(TRANSCRIPT_WORKSPACE_VOICE_GUIDE, 'polite');
-      speakText(TRANSCRIPT_WORKSPACE_VOICE_GUIDE);
     }
-  }, [announce, speakText]);
+  }, []);
 
   // Transcript state
   const [transcripts, setTranscripts] = useState<TranscriptLogEntry[]>([]);

@@ -173,8 +173,6 @@ export function RegisterScreen() {
     if (!hasAnnouncedIntroRef.current) {
       hasAnnouncedIntroRef.current = true;
       lastPromptRef.current = REGISTER_INTRO_MESSAGE;
-      announce(REGISTER_INTRO_MESSAGE, 'polite');
-      speakText(REGISTER_INTRO_MESSAGE);
     }
 
     return () => {
@@ -524,6 +522,25 @@ export function RegisterScreen() {
     startVoiceListening();
   }, [announce, startVoiceListening]);
 
+  // Start full audio CAPTCHA flow: reads digits aloud, then begins listening for user response
+  const handleStartAudioCaptchaFlow = useCallback(async () => {
+    let curChallenge = challengeRef.current;
+    if (!curChallenge) {
+      curChallenge = await fetchNewChallenge(false, false);
+    }
+    if (!curChallenge) return;
+
+    setCaptchaError(null);
+    setIsCapturingCaptchaVoice(true);
+    isCapturingCaptchaVoiceRef.current = true;
+
+    const spokenDigits = formatCaptchaForSpeech(curChallenge.phrase);
+    const prompt = `Audio verification code: ${spokenDigits} Please say these four digits now, or type them using your keyboard.`;
+    speakAndRecord(prompt, () => {
+      startVoiceListening();
+    });
+  }, [fetchNewChallenge, speakAndRecord, startVoiceListening]);
+
   // Register context-aware voice handler for Registration
   useEffect(() => {
     const unregister = registerVoiceHandler(async (rawTranscript: string) => {
@@ -558,6 +575,10 @@ export function RegisterScreen() {
       }
       if (cmd === 'read_all_fields') {
         speakAndRecord(REGISTER_FIELDS_SUMMARY, voiceStepRef.current !== 'idle' ? () => startVoiceListening() : undefined);
+        return true;
+      }
+      if (cmd === 'start_audio_captcha') {
+        await handleStartAudioCaptchaFlow();
         return true;
       }
       if (cmd === 'read_captcha') {

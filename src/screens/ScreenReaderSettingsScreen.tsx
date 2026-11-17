@@ -67,14 +67,12 @@ export function ScreenReaderSettingsScreen() {
   const [recognitionLang, setRecognitionLang] = useState<string>(settings.recognitionLang || 'en-IN');
   const hasAnnouncedIntroRef = useRef<boolean>(false);
 
-  // Automatically read out the voice description on entry so blind candidates know all voice commands
+  // Initialize intro state without auto-blasting speech
   useEffect(() => {
     if (!hasAnnouncedIntroRef.current) {
       hasAnnouncedIntroRef.current = true;
-      announce(SCREEN_READER_VOICE_GUIDE, 'polite');
-      speakText(SCREEN_READER_VOICE_GUIDE);
     }
-  }, [announce, speakText]);
+  }, []);
 
   // Audio Reading Preferences
   const [autoReadAloud, setAutoReadAloud] = useState<boolean>(Boolean(settings.autoReadAloud));

@@ -1,0 +1,16 @@
+:root {
+  --color-primary: #1749E8;
+  --color-primary-dark: #123BB8;
+  --color-purple: #6241C8;
+  --color-purple-dark: #4C2FA8;
+  --color-lavender-bg: #F3F0FF;
+  --color-blue-bg: #EEF4FF;
+  --color-surface: #F8FAFC;
+  --color-surface-container: #EEF4FF;
+  --color-on-surface: #172033;
+  --color-secondary-text: #53627A;
+  --color-border: #D9E1EF;
+  --color-primary-container: #1749E8;
+  --color-outline: #53627A;
+  --focus-ring-color: #6241C8;
+}

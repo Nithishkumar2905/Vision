@@ -345,6 +345,7 @@ export type AuthVoiceCommandIntent =
   | 'go_to_login'
   | 'go_to_register'
   | 'read_captcha'
+  | 'start_audio_captcha'
   | 'refresh_captcha'
   | 'help';
 
@@ -399,6 +400,16 @@ export function parseAuthVoiceCommand(
 
   // 3. CAPTCHA specific commands
   if (
+    t === 'start audio captcha' ||
+    t === 'start captcha' ||
+    t === 'begin audio captcha' ||
+    t === 'start voice captcha' ||
+    t === 'voice captcha'
+  ) {
+    return 'start_audio_captcha';
+  }
+
+  if (
     t === 'repeat captcha' ||
     t === 'read captcha' ||
     t === 'play captcha' ||
@@ -444,6 +455,7 @@ export function parseAuthVoiceCommand(
       (t === 'start voice login' ||
         t === 'voice login' ||
         t === 'begin voice login' ||
+        t === 'start login' ||
         t === 'guided login' ||
         t === 'sign in with voice')) ||
     (page === 'register' &&

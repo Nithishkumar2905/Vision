@@ -1,0 +1,10 @@
+{
+  "name": "ACCESSPREP-X — Accessible SSC MTS Preparation Portal",
+  "short_name": "ACCESSPREP-X",
+  "description": "Audio-first AI-assisted competitive examination preparation platform for blind and visually challenged students.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1749E8",
+  "lang": "en-IN"
+}

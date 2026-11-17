@@ -1,4 +1,14 @@
-import crypto from 'crypto';
+function randomHex(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < byteLength; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export interface SpokenChallenge {
   challengeId: string;
@@ -159,14 +169,14 @@ export function generateHumanVerificationChallenge(
   _identifier?: string,
   ttlMs = 3 * 60 * 1000
 ): SpokenChallenge {
-  const challengeId = `ch_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+  const challengeId = `ch_${Date.now()}_${randomHex(8)}`;
   const phrase = generateRandomDigits();
   const expiresAt = Date.now() + ttlMs;
 
   const challenge: SpokenChallenge = {
     challengeId,
     phrase,
-    token: `tok_${crypto.randomBytes(8).toString('hex')}`,
+    token: `tok_${randomHex(8)}`,
     expiresAt,
     attempts: 0,
     attemptsUsed: 0,
@@ -245,7 +255,7 @@ export function verifyChallengeResponse(
   }
 
   // Verification passed
-  const verificationToken = `vt_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
+  const verificationToken = `vt_${Date.now()}_${randomHex(16)}`;
   challenge.verified = true;
   challenge.verificationToken = verificationToken;
 

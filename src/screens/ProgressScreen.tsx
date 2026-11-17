@@ -11,6 +11,7 @@ import { BiTopicMasteryTable, TopicMasteryItem } from '../components/dashboard/B
 import { BiLearningActivityTable, LearningHistoryEntry } from '../components/dashboard/BiLearningActivityTable.tsx';
 import { BiSpeedVsAccuracy } from '../components/dashboard/BiSpeedVsAccuracy.tsx';
 import { RevisionData } from '../components/dashboard/RevisionOverview.tsx';
+import { ScreenNavigationDisclaimer } from '../components/ScreenNavigationDisclaimer.tsx';
 import { SubjectAnalyticsBreakdown } from '../db/repository.ts';
 import { MockExamAttempt } from '../db/database.ts';
 import {
@@ -35,7 +36,7 @@ interface ProgressAnalyticsData {
 }
 
 export const ProgressScreen: React.FC = () => {
-  const { user, navigateTo } = useAccessibility();
+  const { user, navigateTo, announce, speakText, registerVoiceHandler } = useAccessibility();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +211,80 @@ export const ProgressScreen: React.FC = () => {
     navigateTo('voice_practice');
   };
 
+
+  // Screen-level keyboard shortcuts for Progress Analytics
+  useEffect(() => {
+    const handleProgressKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isInput) return;
+
+      const k = e.key.toLowerCase();
+      if (k === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        fetchData();
+        announce('Refreshed progress analytics data', 'polite');
+      } else if (k === '1' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setDateFilter('all');
+        announce('Showing all-time performance history', 'polite');
+      } else if (k === '2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setDateFilter('30d');
+        announce('Filtered to last 30 days', 'polite');
+      } else if (k === '3' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setDateFilter('7d');
+        announce('Filtered to last 7 days', 'polite');
+      } else if ((k === 'e' || k === 'p') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleExportData();
+      }
+    };
+
+    window.addEventListener('keydown', handleProgressKeyDown);
+    return () => window.removeEventListener('keydown', handleProgressKeyDown);
+  }, [fetchData, announce]);
+
+  // Voice commands for Progress Analytics
+  useEffect(() => {
+    const unregister = registerVoiceHandler((transcript: string) => {
+      const clean = transcript.toLowerCase().trim();
+      if (clean.includes('refresh') || clean.includes('reload')) {
+        fetchData();
+        speakText('Refreshing candidate progress analytics.');
+        return true;
+      }
+      if (clean.includes('7 days') || clean.includes('last week')) {
+        setDateFilter('7d');
+        speakText('Filtered performance history to the last 7 days.');
+        return true;
+      }
+      if (clean.includes('30 days') || clean.includes('last month')) {
+        setDateFilter('30d');
+        speakText('Filtered performance history to the last 30 days.');
+        return true;
+      }
+      if (clean.includes('all time') || clean.includes('all days')) {
+        setDateFilter('all');
+        speakText('Showing all-time performance history.');
+        return true;
+      }
+      if (clean.includes('export') || clean.includes('download report')) {
+        handleExportData();
+        speakText('Exporting candidate progress audit report.');
+        return true;
+      }
+      if (clean.includes('practice weak') || clean.includes('weak area')) {
+        handleStartPractice();
+        return true;
+      }
+      return false;
+    });
+
+    return () => unregister();
+  }, [fetchData, speakText, registerVoiceHandler]);
+
   const handleExportData = () => {
     const report = {
       portal: 'ACCESSPREP-X Official Examination Analytics',
@@ -273,6 +348,50 @@ export const ProgressScreen: React.FC = () => {
           </button>
         </div>
       )}
+
+
+      {/* Screen Navigation Disclaimer */}
+      <ScreenNavigationDisclaimer
+        screenId="PROGRESS"
+        screenTitle="Progress Analytics Navigation &amp; Voice Commands"
+        description="Comprehensive Business Intelligence dashboard for tracking SSC MTS readiness index, practice accuracy, Bayesian topic mastery, and mock examination trends."
+        actions={[
+          {
+            label: 'Refresh Analytics Metrics',
+            opens: 'Re-queries latest practice sessions, mock exams, and topic mastery states from database.',
+            shortcut: 'Press R',
+            voiceCommand: 'Say "Refresh Analytics" or "Reload"'
+          },
+          {
+            label: 'Filter Performance Timeline',
+            opens: 'Toggles between All Time, Last 30 Days, or Last 7 Days.',
+            shortcut: 'Press 1 (All), 2 (30d), 3 (7d)',
+            voiceCommand: 'Say "Filter 7 Days" or "Filter 30 Days"'
+          },
+          {
+            label: 'Export Performance Audit Report',
+            opens: 'Downloads a structured JSON audit report with your readiness index and topic mastery.',
+            shortcut: 'Press E or P',
+            voiceCommand: 'Say "Export Report" or "Download"'
+          },
+          {
+            label: 'Practice Lowest Mastery Subject',
+            opens: 'Opens Voice Practice targeting your weakest syllabus topic.',
+            shortcut: 'Alt + P',
+            voiceCommand: 'Say "Start Practice Weak Area"'
+          },
+          {
+            label: 'Return to Dashboard',
+            opens: 'Navigates back to the main student dashboard overview.',
+            shortcut: 'Alt + D',
+            voiceCommand: 'Say "Dashboard"'
+          }
+        ]}
+        tips={[
+          'Press R to instantly refresh all analytics after completing a mock exam or practice drill.',
+          'Press E or P to export your full candidate performance summary.'
+        ]}
+      />
 
       {/* Header Banner */}
       <div className="bg-white border border-[#E8EBF0] rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">

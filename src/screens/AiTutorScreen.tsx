@@ -3,7 +3,7 @@ import { useAccessibility } from '../context/AccessibilityContext';
 import { VoiceInputButton } from '../components/VoiceInputButton';
 import { AudioToolbar } from '../components/AudioToolbar';
 import { ScreenNavigationDisclaimer } from '../components/ScreenNavigationDisclaimer';
-import { Bot, Send, Sparkles, BookOpen, HelpCircle, CheckCircle, Lightbulb, Mic } from 'lucide-react';
+import { Bot, Send, Sparkles, BookOpen, HelpCircle, CheckCircle, Lightbulb, Mic, Key, X } from 'lucide-react';
 import { parseAnswer } from '../utils/answerParser';
 
 interface Message {
@@ -35,6 +35,16 @@ export const AiTutorScreen: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState('Numerical and Mathematical Ability');
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [apiKey, setApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('accessprep_gemini_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [keySaveMessage, setKeySaveMessage] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -85,7 +95,8 @@ export const AiTutorScreen: React.FC = () => {
           message: textToSend,
           subject: selectedTopic,
           topic: selectedTopic,
-          userId: user?.id || 'usr_candidate_01'
+          userId: user?.id || 'usr_candidate_01',
+          apiKey: apiKey.trim() || undefined
         })
       });
       const data = await res.json();
@@ -125,6 +136,85 @@ export const AiTutorScreen: React.FC = () => {
       setLoading(false);
     }
   }, [inputText, selectedTopic, user?.id, speakText, playBeacon, startVoiceListening]);
+
+
+  const handleSaveApiKey = async (newKey: string) => {
+    const trimmed = newKey.trim();
+    setApiKey(trimmed);
+    try {
+      if (trimmed) {
+        localStorage.setItem('accessprep_gemini_api_key', trimmed);
+        await fetch('/api/tutor/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: trimmed })
+        });
+        setKeySaveMessage('Gemini API key saved and activated successfully.');
+        announce('Gemini API key saved and activated.', 'polite');
+      } else {
+        localStorage.removeItem('accessprep_gemini_api_key');
+        setKeySaveMessage('Using standard syllabus pedagogy engine.');
+        announce('Cleared custom API key. Using standard pedagogy engine.', 'polite');
+      }
+    } catch {
+      setKeySaveMessage('Key stored in local session.');
+    }
+    setTimeout(() => setKeySaveMessage(null), 3000);
+  };
+
+  // Keyboard shortcuts for AI Tutor
+  useEffect(() => {
+    const handleTutorKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+      if (e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowKeyModal((prev) => !prev);
+        return;
+      }
+
+      if (!isInput) {
+        const k = e.key.toLowerCase();
+        if (k === 'k') {
+          e.preventDefault();
+          setShowKeyModal((prev) => !prev);
+        } else if (k === 'a' || e.key === 'Enter') {
+          e.preventDefault();
+          inputRef.current?.focus();
+        } else if (k === 'c') {
+          e.preventDefault();
+          setInputText('');
+          announce('Chat input cleared', 'polite');
+        } else if (k === 'r') {
+          e.preventDefault();
+          const lastTutorMsg = [...messagesRef.current].reverse().find((m) => m.sender === 'tutor');
+          if (lastTutorMsg) {
+            speakText(lastTutorMsg.text);
+          }
+        } else if (k === 's') {
+          e.preventDefault();
+          stopSpeaking();
+          announce('Tutor speech stopped', 'polite');
+        } else if (k === '1') {
+          e.preventDefault();
+          handleSend(sampleQuestions[0]);
+        } else if (k === '2') {
+          e.preventDefault();
+          handleSend(sampleQuestions[1]);
+        } else if (k === '3') {
+          e.preventDefault();
+          handleSend(sampleQuestions[2]);
+        } else if (k === '4') {
+          e.preventDefault();
+          handleSend(sampleQuestions[3]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleTutorKeyDown);
+    return () => window.removeEventListener('keydown', handleTutorKeyDown);
+  }, [handleSend, sampleQuestions, speakText, stopSpeaking, announce]);
 
   // Register screen voice listener for candidate doubts & audio playback controls
   useEffect(() => {
@@ -215,40 +305,68 @@ export const AiTutorScreen: React.FC = () => {
         </div>
 
         {/* Global Read Aloud */}
-        <AudioToolbar
-          textToRead={messages[messages.length - 1]?.text || 'No message'}
-          label="Tutor Response Audio"
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowKeyModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-600 transition-colors"
+            title="Configure Gemini API Key (Press K)"
+            aria-label="Configure Gemini API Key (Press K)"
+          >
+            <Key className="w-3.5 h-3.5 text-blue-700" />
+            <span>API Key (K)</span>
+            {apiKey ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-500" title="Connected" />
+            ) : null}
+          </button>
+          <AudioToolbar
+            textToRead={messages[messages.length - 1]?.text || 'No message'}
+            label="Tutor Response Audio"
+          />
+        </div>
       </div>
 
       {/* Screen Navigation Disclaimer */}
       <ScreenNavigationDisclaimer
         screenId="AI_TUTOR"
         screenTitle="AI Subject Tutor & Scribe"
-        description="Ask conversational questions on any SSC MTS topic. Explanations are broken into step-by-step shortcuts and read aloud automatically."
+        description="Ask conversational questions on any SSC MTS topic. Powered by Google Gemini 2.5 Flash and verified SSC curriculum grounding."
         actions={[
           {
             label: 'Speak or Type Your Doubt',
             opens: 'Sends your query to the AI tutor and generates clear step-by-step explanations.',
-            shortcut: 'Enter',
+            shortcut: 'Enter or Press A',
             voiceCommand: 'Speak directly into microphone'
           },
           {
-            label: 'Select Syllabus Subject',
-            opens: 'Switches tutor context between Math, Reasoning, General Awareness, and English.',
-            voiceCommand: 'Say "Math", "Reasoning", "General Awareness", or "English"'
+            label: 'Configure Gemini API Key',
+            opens: 'Connects official Google Gemini 2.5 Flash for advanced syllabus reasoning.',
+            shortcut: 'Press K',
+            voiceCommand: 'Say "API Key" or "Configure Key"'
           },
           {
-            label: 'Frequently Asked Queries',
-            opens: 'Instant explanations for common SSC MTS shortcut methods and formulas.',
+            label: 'Repeat Explanation',
+            opens: 'Re-reads the last tutor explanation aloud.',
+            shortcut: 'Press R',
+            voiceCommand: 'Say "Repeat" or "Read Again"'
+          },
+          {
+            label: 'Ask Sample Query 1 to 4',
+            opens: 'Instantly runs compound interest, syllogism, constitution, or grammar rules queries.',
+            shortcut: 'Press 1, 2, 3, or 4',
             voiceCommand: 'Click or speak any sample question'
           },
           {
             label: 'Stop Reading Answer',
             opens: 'Immediately halts AI speech synthesis.',
-            shortcut: 'Escape',
+            shortcut: 'Escape or Press S',
             voiceCommand: 'Say "Stop"'
           }
+        ]}
+        tips={[
+          'Press K at any time to configure your Gemini API Key.',
+          'Press 1 to 4 to ask frequent SSC MTS question types with zero typing.',
+          'Press R to repeat the tutor explanation.'
         ]}
       />
 
@@ -412,6 +530,90 @@ export const AiTutorScreen: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {/* Gemini API Key Configuration Modal */}
+      {showKeyModal && (
+        <div
+          role="dialog"
+          aria-labelledby="api-key-modal-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+        >
+          <div className="bg-white border-2 border-blue-600 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 id="api-key-modal-title" className="text-base font-bold text-slate-900">
+                    Gemini API Key Configuration
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Connect Gemini 2.5 Flash for real-time exam pedagogy
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                aria-label="Close API Key dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600">
+              <p>
+                ACCESSPREP-X uses <strong>Google Gemini 2.5 Flash</strong> with official SSC MTS syllabus grounding. Enter your Gemini API key below to enable full conversational learning:
+              </p>
+              <div>
+                <label htmlFor="gemini-key-input" className="block font-bold text-slate-700 mb-1">
+                  Gemini API Key
+                </label>
+                <input
+                  id="gemini-key-input"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+
+              {keySaveMessage && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-xs font-semibold">
+                  ✓ {keySaveMessage}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveApiKey('');
+                }}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg"
+              >
+                Reset to Default
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveApiKey(apiKey);
+                  setShowKeyModal(false);
+                }}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 rounded-lg"
+              >
+                Save &amp; Connect (Enter)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

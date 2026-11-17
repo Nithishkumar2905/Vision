@@ -21,7 +21,6 @@ import {
   LogIn,
   ClipboardCheck,
   Award,
-  Target,
   Sliders,
   Headphones
 } from 'lucide-react';
@@ -64,8 +63,7 @@ export function Navigation({ onOpenHelp }: NavigationProps) {
     { id: 'ai_tutor', label: 'AI Tutor', icon: <Brain className="w-4 h-4 shrink-0" /> },
     { id: 'revision_planner', label: 'Revision Planner', icon: <Calendar className="w-4 h-4 shrink-0" /> },
     { id: 'learning_history', label: 'Transcript Workspace', icon: <History className="w-4 h-4 shrink-0" /> },
-    { id: 'progress', label: 'Progress Analytics', icon: <BarChart2 className="w-4 h-4 shrink-0" /> },
-    { id: 'topic_mastery', label: 'Topic Mastery', icon: <Target className="w-4 h-4 shrink-0" /> }
+    { id: 'progress', label: 'Progress Analytics', icon: <BarChart2 className="w-4 h-4 shrink-0" /> }
   ];
 
   // Admin items

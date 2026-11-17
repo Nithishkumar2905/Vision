@@ -63,7 +63,7 @@ export function MockExamScreen() {
 
   // Exam answers map: questionId -> { selectedOption, timeSpent, markedForReview }
   const [answers, setAnswers] = useState<
-    Record<string, { selectedOption: string | null; timeSpent: number; markedForReview: boolean }>
+    Record<string, { selectedOption: string | null; timeSpent: number; markedForReview?: boolean }>
   >({});
 
   const isPwD = user?.pwdCategory !== 'None' || settings.compensatoryTimeEnabled;

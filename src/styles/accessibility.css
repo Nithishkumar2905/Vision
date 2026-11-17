@@ -1,0 +1,37 @@
+/* Accessible Focus Indicator (WCAG 2.1 AAA) */
+*:focus-visible {
+  outline: 3px solid var(--focus-ring-color) !important;
+  outline-offset: 2px !important;
+}
+
+/* Dyslexia / Hyperlegible Font Mode */
+body.font-dyslexic {
+  font-family: 'Comic Sans MS', 'Atkinson Hyperlegible', sans-serif !important;
+  letter-spacing: 0.05em !important;
+  word-spacing: 0.1em !important;
+  line-height: 1.8 !important;
+}
+
+/* Dynamic Font Scaling */
+body.font-scale-100 { font-size: 100%; }
+body.font-scale-125 { font-size: 115%; }
+body.font-scale-150 { font-size: 130%; }
+body.font-scale-175 { font-size: 145%; }
+body.font-scale-200 { font-size: 160%; }
+
+/* Reduced Motion Compliance */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body.reduce-motion *, body.reduce-motion ::before, body.reduce-motion ::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

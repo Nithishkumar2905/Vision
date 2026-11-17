@@ -64,6 +64,8 @@ test('Auth Voice Commands: Context-aware command parsing for Login and Registrat
   assert.equal(parseAuthVoiceCommand('Go to registration', 'login'), 'go_to_register');
   assert.equal(parseAuthVoiceCommand('Help', 'login'), 'help');
   assert.equal(parseAuthVoiceCommand('Repeat CAPTCHA', 'login'), 'read_captcha');
+  assert.equal(parseAuthVoiceCommand('Start audio captcha', 'login'), 'start_audio_captcha');
+  assert.equal(parseAuthVoiceCommand('Start audio captcha', 'register'), 'start_audio_captcha');
   assert.equal(parseAuthVoiceCommand('Refresh CAPTCHA', 'register'), 'refresh_captcha');
 
   // Context-specific separation: Login vs Registration triggers

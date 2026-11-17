@@ -10,8 +10,8 @@ export interface ActionItem {
   voiceCommand?: string;
 }
 
-interface ScreenNavigationDisclaimerProps {
-  screenId: ScreenId;
+export interface ScreenNavigationDisclaimerProps {
+  screenId: ScreenId | Uppercase<ScreenId>;
   screenTitle?: string;
   description?: string;
   actions: ActionItem[];
@@ -27,8 +27,9 @@ export function ScreenNavigationDisclaimer({
 }: ScreenNavigationDisclaimerProps) {
   const { speakText, announce, stopSpeaking, isSpeaking } = useAccessibility();
 
-  const title = screenTitle || SCREEN_REGISTRY[screenId]?.title || screenId.replace(/_/g, ' ');
-  const desc = description || SCREEN_REGISTRY[screenId]?.description || 'Accessible SSC MTS portal screen.';
+  const normalizedScreenId = screenId.toLowerCase() as ScreenId;
+  const title = screenTitle || SCREEN_REGISTRY[normalizedScreenId]?.title || normalizedScreenId.replace(/_/g, ' ');
+  const desc = description || SCREEN_REGISTRY[normalizedScreenId]?.description || 'Accessible SSC MTS portal screen.';
 
   const handleReadAloud = () => {
     if (isSpeaking) {

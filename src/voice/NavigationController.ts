@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ACCESSPREP-X — Global Voice Navigation Controller
  *
  * Priority chain (highest → lowest):
@@ -122,24 +122,24 @@ export class NavigationController {
     context: NavigationContext;
     navigate: (screen: ScreenId) => void;
     speak: (text: string, onEnd?: () => void) => void;
-    stopSpeak: () => void;
+    stopSpeak?: () => void;
     pauseSpeak?: () => void;
     resumeSpeak?: () => void;
     slowDown?: () => void;
     onSpeechSetting?: (setting: SpeechSettingCommand) => void;
-    logout: () => void;
+    logout?: () => void;
     onToggleVision?: (active: boolean) => void;
     startListening?: () => void;
   }) {
     this.context = opts.context;
     this.navigateFn = opts.navigate;
     this.speakFn = opts.speak;
-    this.stopSpeakFn = opts.stopSpeak;
+    this.stopSpeakFn = opts.stopSpeak || (() => {});
     this.pauseSpeakFn = opts.pauseSpeak;
     this.resumeSpeakFn = opts.resumeSpeak;
     this.slowDownFn = opts.slowDown;
     this.onSpeechSettingFn = opts.onSpeechSetting;
-    this.logoutFn = opts.logout;
+    this.logoutFn = opts.logout || (() => {});
     this.onToggleVisionFn = opts.onToggleVision;
     this.startListeningFn = opts.startListening;
   }
