@@ -12,6 +12,26 @@ import {
   getExecutionEnv
 } from '../utils/pythonRunner.utils.ts';
 
+function safeExecFile(
+  file: string,
+  args: string[],
+  options: any,
+  callback: (error: any, stdout: string, stderr: string) => void
+) {
+  try {
+    const cp = execFile(file, args, options, (error, stdout, stderr) => {
+      callback(error, String(stdout || ''), String(stderr || ''));
+    });
+    cp.on('error', (err) => {
+      callback(err, '', String(err?.message || ''));
+    });
+    return cp;
+  } catch (err: any) {
+    callback(err, '', String(err?.message || ''));
+    return null;
+  }
+}
+
 export function getDatasetSummary(_req: Request, res: Response) {
   try {
     const reportPath = path.resolve(process.cwd(), 'src/data/dataset_validation_report.json');
@@ -54,14 +74,13 @@ export function postModelPredict(req: Request, res: Response) {
     return res.status(400).json({ error: 'Question text is required for inference.' });
   }
 
-  execFile(
+  safeExecFile(
     getPythonExecutable(),
     ['scripts/inference.py', questionText.trim()],
     { env: getExecutionEnv() },
     (error, stdout, stderr) => {
       if (error) {
-        console.error('Inference error:', error, stderr);
-        return res.status(500).json({ error: 'Failed to run model inference', details: stderr });
+        return res.status(500).json({ error: 'Failed to run model inference', details: stderr || error.message });
       }
       try {
         const parsed = JSON.parse(stdout);
@@ -74,14 +93,13 @@ export function postModelPredict(req: Request, res: Response) {
 }
 
 export function postModelTrain(_req: Request, res: Response) {
-  execFile(
+  safeExecFile(
     getPythonExecutable(),
     ['scripts/train_model.py'],
     { env: getExecutionEnv() },
     (error, stdout, stderr) => {
       if (error) {
-        console.error('Training script error:', error, stderr);
-        return res.status(500).json({ error: 'Model training pipeline failed', details: stderr });
+        return res.status(500).json({ error: 'Model training pipeline failed', details: stderr || error.message });
       }
       const evalPath = path.resolve(process.cwd(), 'src/data/model_evaluation_report.json');
       const report = fs.existsSync(evalPath)
@@ -97,7 +115,7 @@ export function postModelTrain(_req: Request, res: Response) {
 }
 
 export function getAudioStatus(_req: Request, res: Response) {
-  execFile(
+  safeExecFile(
     getPythonExecutable(),
     ['-c', 'import whisper; print("ok")'],
     { timeout: 8000, env: getExecutionEnv() },
@@ -105,15 +123,7 @@ export function getAudioStatus(_req: Request, res: Response) {
       if (!err && stdout.trim() === 'ok') {
         return res.json({ whisperAvailable: true, pythonAvailable: true });
       }
-      execFile(
-        'python',
-        ['-c', 'import whisper; print("ok")'],
-        { timeout: 8000, env: getExecutionEnv() },
-        (err2, stdout2) => {
-          const available = !err2 && stdout2.trim() === 'ok';
-          res.json({ whisperAvailable: available, pythonAvailable: !err2 });
-        }
-      );
+      res.json({ whisperAvailable: false, pythonAvailable: !err });
     }
   );
 }
@@ -152,35 +162,13 @@ export function postAudioTranscribe(req: Request, res: Response) {
     });
   }
 
-  execFile(
+  safeExecFile(
     getPythonExecutable(),
     [scriptPath, filePath],
     { timeout: 45000, env: getExecutionEnv() },
     (error, stdout, stderr) => {
       if (error) {
-        execFile(
-          'python',
-          [scriptPath, filePath],
-          { timeout: 45000, env: getExecutionEnv() },
-          (err2, stdout2, stderr2) => {
-            if (err2) {
-              return handleWhisperUnavailable(err2.message || stderr2);
-            }
-            cleanupTempFile();
-            try {
-              const parsed = JSON.parse(stdout2);
-              res.json({ ...parsed, whisperAvailable: true });
-            } catch {
-              res.json({
-                success: true,
-                transcript: stdout2.trim(),
-                confidence: 0.85,
-                whisperAvailable: true
-              });
-            }
-          }
-        );
-        return;
+        return handleWhisperUnavailable(error.message || stderr);
       }
 
       cleanupTempFile();

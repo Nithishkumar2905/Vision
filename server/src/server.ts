@@ -11,6 +11,14 @@ import { runDatabaseMigration } from './repositories/index.ts';
 
 export const app = createExpressApp();
 
+process.on('uncaughtException', (err) => {
+  console.warn('[Server Handled Uncaught Exception]:', err?.message || err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Server Handled Unhandled Rejection]:', reason);
+});
+
 export async function startServer() {
   try {
     const report = await runDatabaseMigration();
