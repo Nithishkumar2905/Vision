@@ -335,18 +335,20 @@ export function PilotDemoScreen() {
     fetchDiagnosticData();
   }, [fetchDiagnosticData]);
 
-  // Register active exam guard with AccessibilityContext only during active 'exam' phase
+  // Register active exam guard with AccessibilityContext during active 'exam' phase
+  // and ensure VoiceEngine is actively listening on Pilot Demo screens
   useEffect(() => {
-    const active = view === 'exam' && timerRunning;
+    const active = view === 'exam';
     setIsExamActive(active);
+    startVoiceListening();
     return () => {
       setIsExamActive(false);
     };
-  }, [view, timerRunning, setIsExamActive]);
+  }, [view, setIsExamActive, startVoiceListening]);
 
   // Persist active exam state to sessionStorage on change
   useEffect(() => {
-    if (view === 'exam' && timerRunning && questions.length > 0) {
+    if (view === 'exam' && questions.length > 0) {
       try {
         sessionStorage.setItem(
           sessionKey,
@@ -363,7 +365,7 @@ export function PilotDemoScreen() {
         );
       } catch {}
     }
-  }, [view, timerRunning, questions.length, answers, currentIdx, secondsRemaining, clientSubmissionId, sessionKey]);
+  }, [view, questions.length, answers, currentIdx, secondsRemaining, clientSubmissionId, sessionKey]);
 
   // Track time spent on current question when switching questions
   const recordElapsedOnCurrentQuestion = useCallback(() => {
@@ -417,10 +419,10 @@ export function PilotDemoScreen() {
         return;
       }
 
-      // 1-2. Immediately cancel instruction playback & stop mic listening safely
+      // 1-2. Immediately cancel instruction playback & ensure mic listening stays active
       examStartedLockRef.current = true;
       stopSpeaking();
-      stopVoiceListening();
+      startVoiceListening();
 
       // 3-6. Record acceptance & transition state machine through STARTING_EXAM -> EXAM_IN_PROGRESS
       const nowIso = new Date().toISOString();
@@ -497,6 +499,7 @@ export function PilotDemoScreen() {
     (method: AcceptanceMethod = 'VOICE') => {
       if (examStartedLockRef.current || viewRef.current !== 'instructions') return;
       stopSpeaking();
+      startVoiceListening();
       beginInputMethodRef.current = method;
       setShowStartConfirm(true);
       showStartConfirmRef.current = true;
@@ -642,6 +645,7 @@ export function PilotDemoScreen() {
   const requestPilotDemoSubmit = useCallback(() => {
     if (isSubmittingRef.current || viewRef.current !== 'exam') return;
     stopSpeaking();
+    startVoiceListening();
     setTimerRunning(false);
     setShowSubmitConfirm(true);
     showSubmitConfirmRef.current = true;
@@ -1401,10 +1405,8 @@ export function PilotDemoScreen() {
     startInstructionsVoiceFlow
   ]);
 
-  // Keyboard shortcuts during active exam (1-4 / A-D for options, Left/Right arrows)
+  // Keyboard shortcuts during instructions confirmation & active exam
   useEffect(() => {
-    if (view !== 'exam') return;
-
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
@@ -1413,6 +1415,36 @@ export function PilotDemoScreen() {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
 
       const key = e.key.toUpperCase();
+
+      // 1. Start Confirmation Dialog keyboard shortcuts (Y / N / Escape)
+      if (view === 'instructions' && showStartConfirmRef.current) {
+        if (key === 'Y') {
+          e.preventDefault();
+          confirmPilotDemoStart();
+        } else if (key === 'N' || e.key === 'Escape') {
+          e.preventDefault();
+          cancelPilotDemoStart();
+        }
+        return;
+      }
+
+      if (view !== 'exam') return;
+
+      // 2. Submit Confirmation Dialog keyboard shortcuts (Y / N / Escape)
+      if (showSubmitConfirmRef.current) {
+        if (key === 'Y') {
+          e.preventDefault();
+          handleSubmitDiagnostic();
+        } else if (key === 'N' || e.key === 'Escape') {
+          e.preventDefault();
+          cancelPilotDemoSubmit();
+        }
+        return;
+      }
+
+      // Allow native Enter/Space activation when a button is explicitly focused
+      const isButtonFocused = target.tagName === 'BUTTON';
+
       if (key === 'A' || key === '1') {
         e.preventDefault();
         handleSelectOption('A');
@@ -1425,13 +1457,13 @@ export function PilotDemoScreen() {
       } else if (key === 'D' || key === '4') {
         e.preventDefault();
         handleSelectOption('D');
-      } else if (e.code === 'Space') {
+      } else if (e.code === 'Space' && !isButtonFocused) {
         e.preventDefault();
         const curQ = questionsRef.current[currentIdxRef.current];
         if (curQ) {
           readQuestionAloud(curQ, currentIdxRef.current, questionsRef.current.length);
         }
-      } else if (e.key === 'Enter') {
+      } else if (e.key === 'Enter' && !isButtonFocused) {
         e.preventDefault();
         if (currentIdxRef.current < questionsRef.current.length - 1) {
           handleGoToQuestion(currentIdxRef.current + 1);
@@ -1447,7 +1479,16 @@ export function PilotDemoScreen() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [view, handleSelectOption, handleGoToQuestion, readQuestionAloud]);
+  }, [
+    view,
+    handleSelectOption,
+    handleGoToQuestion,
+    readQuestionAloud,
+    confirmPilotDemoStart,
+    cancelPilotDemoStart,
+    handleSubmitDiagnostic,
+    cancelPilotDemoSubmit
+  ]);
 
   // Palette summary counts
   const paletteStats = useMemo(() => {
@@ -2190,6 +2231,21 @@ export function PilotDemoScreen() {
                 </div>
                 <VoiceInputButton
                   onTranscriptConfirmed={(text: string) => {
+                    const cleanText = normalizeExamCommand(text);
+                    if (showSubmitConfirmRef.current) {
+                      if (isSubmitConfirmPhrase(cleanText)) {
+                        handleSubmitDiagnostic();
+                        return;
+                      }
+                      if (isSubmitCancelPhrase(cleanText)) {
+                        cancelPilotDemoSubmit();
+                        return;
+                      }
+                    }
+                    if (isSubmitExamRequestPhrase(cleanText) || cleanText === 'confirm submission') {
+                      requestPilotDemoSubmit();
+                      return;
+                    }
                     const parsed = parseSpokenAnswer(text, {
                       A: currentQ.option_a,
                       B: currentQ.option_b,
@@ -2198,6 +2254,20 @@ export function PilotDemoScreen() {
                     });
                     if (parsed?.type === 'option') {
                       handleSelectOption(parsed.option, true);
+                    } else if (parsed?.type === 'control') {
+                      if (parsed.command === 'submit') {
+                        requestPilotDemoSubmit();
+                      } else if (parsed.command === 'skip' && currentIdxRef.current < questionsRef.current.length - 1) {
+                        handleGoToQuestion(currentIdxRef.current + 1);
+                      } else if (parsed.command === 'previous' && currentIdxRef.current > 0) {
+                        handleGoToQuestion(currentIdxRef.current - 1);
+                      } else if (parsed.command === 'repeat') {
+                        readQuestionAloud(currentQ, currentIdxRef.current, questionsRef.current.length);
+                      } else if (parsed.command === 'repeat_options') {
+                        repeatOptionsAloud(currentQ);
+                      } else if (parsed.command === 'mark_review') {
+                        handleToggleMarkReview();
+                      }
                     }
                   }}
                   label="Answer by Voice"

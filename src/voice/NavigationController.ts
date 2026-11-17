@@ -284,8 +284,9 @@ export class NavigationController {
       };
     }
 
-    // In wake-word only mode (isVisionAssistantActive === false), ignore all speech silently
-    if (this.context.isVisionAssistantActive === false) {
+    // In wake-word only mode (isVisionAssistantActive === false), ignore global speech silently
+    // UNLESS an active screen-level voice handler is registered (e.g. PilotDemo, MockExam, VoicePractice)
+    if (this.context.isVisionAssistantActive === false && !activeVoiceHandler) {
       return {
         ...base,
         status: 'system_handled',

@@ -51,6 +51,96 @@ function isStopCommand(text: string): boolean {
   );
 }
 
+/**
+ * Direct actionable exam/confirmation commands that should interrupt ongoing TTS
+ * and immediately execute (barge-in) without waiting for long question/instruction reading to finish.
+ */
+function isActionableBargeInCommand(text: string): boolean {
+  const t = text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!t) return false;
+
+  const exactCommands = new Set([
+    'submit',
+    'submit exam',
+    'submit the exam',
+    'submit examination',
+    'submit the examination',
+    'submit my examination',
+    'submit test',
+    'submit pilot demo',
+    'submit pilot examination',
+    'submit diagnostic',
+    'finish exam',
+    'finish examination',
+    'finish test',
+    'summit examination',
+    'summit exam',
+    'confirm submission',
+    'cancel submission',
+    'start examination',
+    'start the examination',
+    'begin test',
+    'begin the test',
+    'start pilot demo',
+    'begin pilot examination',
+    'start diagnostic',
+    'begin diagnostic',
+    'start exam',
+    'begin exam',
+    'yes',
+    'yeah',
+    'yep',
+    'confirm',
+    'i confirm',
+    'confirmed',
+    'start now',
+    'submit now',
+    'yes submit',
+    'yes start',
+    'no',
+    'nope',
+    'cancel',
+    'not now',
+    'go back',
+    'next question',
+    'previous question',
+    'skip question',
+    'mark for review',
+    'repeat question',
+    'read options',
+    'repeat options',
+    'option a',
+    'option b',
+    'option c',
+    'option d',
+    'select option a',
+    'select option b',
+    'select option c',
+    'select option d',
+    'choice a',
+    'choice b',
+    'choice c',
+    'choice d',
+    'answer a',
+    'answer b',
+    'answer c',
+    'answer d',
+    'hey vision',
+    'hi vision',
+    'hello vision'
+  ]);
+
+  if (exactCommands.has(t)) return true;
+
+  return /^(?:please\s+)?(?:submit|summit|finish|start|begin)\s+(?:the\s+|my\s+)?(?:pilot\s+demo|pilot\s+examination|diagnostic|examination|exam|test)$/.test(
+    t
+  );
+}
+
 export class VoiceEngine {
   private opts: VoiceEngineOptions;
   private rec: any = null;
@@ -202,14 +292,14 @@ export class VoiceEngine {
 
         let transcript = (result[0].transcript || '').trim();
 
-        // Check if another alternative provides an exact proper name or critical stop match
+        // Check if another alternative provides an exact proper name, stop match, or actionable exam command
         for (let i = 0; i < result.length; i++) {
           const alt = (result[i]?.transcript || '').trim();
           if (/^(ashwin|ashwin sharma|ashwin kumar|ashwin s|ashwin r)$/i.test(alt)) {
             transcript = alt;
             break;
           }
-          if (isStopCommand(alt)) {
+          if (isStopCommand(alt) || isActionableBargeInCommand(alt)) {
             transcript = alt;
             break;
           }
@@ -217,15 +307,26 @@ export class VoiceEngine {
 
         if (!transcript) return;
 
-        // CRITICAL REQUIREMENT: If the system is currently speaking, ANY "stop" command halts speech immediately!
+        // CRITICAL REQUIREMENT: If the system is currently speaking:
+        // 1. Any "stop" command halts speech immediately.
+        // 2. Any actionable exam/confirmation command (e.g. "Submit examination", "Yes", "No", "Start examination")
+        //    halts speech immediately AND executes the command (barge-in)!
         if (this.isSpeaking) {
           if (isStopCommand(transcript)) {
             console.log('[VoiceEngine Speech Interrupted by Stop Command]:', transcript);
             this.isSpeaking = false;
             this.opts.onStopSpeaking?.();
+            return;
           }
-          // Ignore computer TTS echo during active speech
-          return;
+          if (isActionableBargeInCommand(transcript)) {
+            console.log('[VoiceEngine Barge-In Command During Speech]:', transcript);
+            this.isSpeaking = false;
+            this.opts.onStopSpeaking?.();
+            // Fall through to dispatch transcript to onTranscript!
+          } else {
+            // Ignore computer TTS echo during active speech
+            return;
+          }
         }
 
         console.log('[VoiceEngine Heard]:', transcript);

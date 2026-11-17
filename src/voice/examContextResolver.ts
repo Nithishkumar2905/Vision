@@ -106,6 +106,8 @@ const START_CONFIRM_PHRASES = new Set([
   'yes',
   'yeah',
   'yep',
+  'yup',
+  'yes please',
   'confirm',
   'i confirm',
   'confirmed',
@@ -124,6 +126,7 @@ const START_CONFIRM_PHRASES = new Set([
 const START_CANCEL_PHRASES = new Set([
   'no',
   'nope',
+  'no thank you',
   'cancel',
   'not now',
   'go back',
@@ -136,38 +139,51 @@ const START_CANCEL_PHRASES = new Set([
 const SUBMIT_REQUEST_PHRASES = new Set([
   'submit examination',
   'submit the examination',
+  'submit my examination',
   'submit exam',
   'submit the exam',
+  'submit my exam',
   'submit test',
   'submit the test',
+  'submit my test',
   'submit pilot demo',
   'submit pilot examination',
   'submit diagnostic',
   'submit diagnostic examination',
   'finish examination',
+  'finish the examination',
   'finish exam',
   'finish test',
   'end examination',
   'end exam',
-  'submit'
+  'submit',
+  'summit examination',
+  'summit exam',
+  'summit test'
 ]);
 
 const SUBMIT_CONFIRM_PHRASES = new Set([
   'yes',
   'yeah',
   'yep',
+  'yup',
+  'yes please',
   'confirm',
   'i confirm',
   'confirmed',
   'confirm submission',
+  'yes confirm',
+  'yes confirm submission',
   'yes submit',
   'yes submit examination',
+  'yes submit exam',
   'submit now'
 ]);
 
 const SUBMIT_CANCEL_PHRASES = new Set([
   'no',
   'nope',
+  'no thank you',
   'cancel',
   'cancel submission',
   'do not submit',
@@ -178,7 +194,8 @@ const SUBMIT_CANCEL_PHRASES = new Set([
   'continue examination',
   'continue exam',
   'resume examination',
-  'keep going'
+  'keep going',
+  'return to exam'
 ]);
 
 export function normalizeExamCommand(rawTranscript: string): string {
@@ -187,32 +204,48 @@ export function normalizeExamCommand(rawTranscript: string): string {
 
 export function isStartExamRequestPhrase(rawTranscript: string): boolean {
   const clean = normalizeExamCommand(rawTranscript);
-  return START_REQUEST_PHRASES.has(clean);
+  if (!clean || clean.includes('mock')) return false;
+  if (START_REQUEST_PHRASES.has(clean)) return true;
+  return /^(?:please\s+|i\s+want\s+to\s+|can\s+you\s+)?(?:start|begin)\s+(?:the\s+|my\s+)?(?:pilot\s+demo|pilot\s+examination|diagnostic\s+examination|diagnostic\s+test|diagnostic|examination|exam|test)$/.test(
+    clean
+  );
 }
 
 export function isStartConfirmPhrase(rawTranscript: string): boolean {
   const clean = normalizeExamCommand(rawTranscript);
-  return START_CONFIRM_PHRASES.has(clean);
+  if (!clean) return false;
+  if (START_CONFIRM_PHRASES.has(clean)) return true;
+  return /^(?:yes|confirm|confirmed)\s+(?:start|begin|please|now)/.test(clean);
 }
 
 export function isStartCancelPhrase(rawTranscript: string): boolean {
   const clean = normalizeExamCommand(rawTranscript);
-  return START_CANCEL_PHRASES.has(clean);
+  if (!clean) return false;
+  if (START_CANCEL_PHRASES.has(clean)) return true;
+  return /^(?:no|cancel)\s+(?:do\s+not|dont|cancel|stop|not\s+now)/.test(clean);
 }
 
 export function isSubmitExamRequestPhrase(rawTranscript: string): boolean {
   const clean = normalizeExamCommand(rawTranscript);
-  return SUBMIT_REQUEST_PHRASES.has(clean);
+  if (!clean || clean.includes('mock')) return false;
+  if (SUBMIT_REQUEST_PHRASES.has(clean)) return true;
+  return /^(?:please\s+|i\s+want\s+to\s+|can\s+you\s+)?(?:submit|submitting|summit|finish|end)\s+(?:the\s+|my\s+)?(?:pilot\s+demo|pilot\s+examination|diagnostic\s+examination|diagnostic\s+test|diagnostic|examination|exam|test|paper|attempt)(?:\s+now|\s+please)?$/.test(
+    clean
+  );
 }
 
 export function isSubmitConfirmPhrase(rawTranscript: string): boolean {
   const clean = normalizeExamCommand(rawTranscript);
-  return SUBMIT_CONFIRM_PHRASES.has(clean);
+  if (!clean) return false;
+  if (SUBMIT_CONFIRM_PHRASES.has(clean)) return true;
+  return /^(?:yes|confirm|confirmed)\s+(?:submit|confirm|please|now)/.test(clean);
 }
 
 export function isSubmitCancelPhrase(rawTranscript: string): boolean {
   const clean = normalizeExamCommand(rawTranscript);
-  return SUBMIT_CANCEL_PHRASES.has(clean);
+  if (!clean) return false;
+  if (SUBMIT_CANCEL_PHRASES.has(clean)) return true;
+  return /^(?:no|cancel)\s+(?:continue|do\s+not|dont|cancel|return|stay)/.test(clean);
 }
 
 /**
@@ -511,26 +544,7 @@ export class ExamConfirmationStateMachine {
           };
         }
 
-        // Prevent pending start confirmation from triggering submission
-        if (isSubmitExamRequestPhrase(clean) || clean === 'confirm submission') {
-          return {
-            handled: true,
-            action: 'RETRY_PILOT_START_CONFIRM',
-            nextState: 'CONFIRMING_START',
-            spokenResponse: PILOT_DEMO_START_CONFIRM_PROMPT
-          };
-        }
-
-        // Repeated start request stays in CONFIRMING_START without duplicate session
-        if (isStartExamRequestPhrase(clean)) {
-          return {
-            handled: true,
-            action: 'RETRY_PILOT_START_CONFIRM',
-            nextState: 'CONFIRMING_START',
-            spokenResponse: PILOT_DEMO_START_CONFIRM_PROMPT
-          };
-        }
-
+        // Check confirm / cancel FIRST before start/submit phrases
         if (isStartConfirmPhrase(clean)) {
           this.state = 'PILOT_RUNNING';
           this.startCount++;
@@ -549,6 +563,26 @@ export class ExamConfirmationStateMachine {
             action: 'CANCEL_PILOT_START',
             nextState: 'PILOT_INTRODUCTION',
             spokenResponse: PILOT_DEMO_START_CANCELLED_SPEECH
+          };
+        }
+
+        // Prevent pending start confirmation from triggering submission
+        if (isSubmitExamRequestPhrase(clean) || clean === 'confirm submission') {
+          return {
+            handled: true,
+            action: 'RETRY_PILOT_START_CONFIRM',
+            nextState: 'CONFIRMING_START',
+            spokenResponse: PILOT_DEMO_START_CONFIRM_PROMPT
+          };
+        }
+
+        // Repeated start request stays in CONFIRMING_START without duplicate session
+        if (isStartExamRequestPhrase(clean)) {
+          return {
+            handled: true,
+            action: 'RETRY_PILOT_START_CONFIRM',
+            nextState: 'CONFIRMING_START',
+            spokenResponse: PILOT_DEMO_START_CONFIRM_PROMPT
           };
         }
 
@@ -602,16 +636,7 @@ export class ExamConfirmationStateMachine {
           };
         }
 
-        // Repeated submit command stays in CONFIRMING_SUBMISSION without duplicate submission
-        if (isSubmitExamRequestPhrase(clean)) {
-          return {
-            handled: true,
-            action: 'RETRY_PILOT_SUBMIT_CONFIRM',
-            nextState: 'CONFIRMING_SUBMISSION',
-            spokenResponse: PILOT_DEMO_SUBMIT_CONFIRM_PROMPT
-          };
-        }
-
+        // Check confirm / cancel FIRST before repeated submit check
         if (isSubmitConfirmPhrase(clean)) {
           this.state = 'COMPLETED';
           this.submitCount++;
@@ -630,6 +655,16 @@ export class ExamConfirmationStateMachine {
             action: 'CANCEL_PILOT_SUBMIT',
             nextState: 'PILOT_RUNNING',
             spokenResponse: PILOT_DEMO_SUBMIT_CANCELLED_SPEECH
+          };
+        }
+
+        // Repeated submit command stays in CONFIRMING_SUBMISSION without duplicate submission
+        if (isSubmitExamRequestPhrase(clean)) {
+          return {
+            handled: true,
+            action: 'RETRY_PILOT_SUBMIT_CONFIRM',
+            nextState: 'CONFIRMING_SUBMISSION',
+            spokenResponse: PILOT_DEMO_SUBMIT_CONFIRM_PROMPT
           };
         }
 
