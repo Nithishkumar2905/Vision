@@ -65,6 +65,25 @@ import {
   parseSystemControl,
   parseAssistanceIntent
 } from '../voice/commandParser.ts';
+import {
+  ExamInteractionState,
+  PILOT_DEMO_START_CONFIRM_PROMPT,
+  PILOT_DEMO_STARTED_SPEECH,
+  PILOT_DEMO_START_CANCELLED_SPEECH,
+  PILOT_DEMO_START_UNCLEAR_PROMPT,
+  PILOT_DEMO_SUBMIT_CONFIRM_PROMPT,
+  PILOT_DEMO_SUBMITTED_SPEECH,
+  PILOT_DEMO_SUBMIT_CANCELLED_SPEECH,
+  PILOT_DEMO_SUBMIT_UNCLEAR_PROMPT,
+  PILOT_DEMO_ALREADY_COMPLETED_SPEECH,
+  normalizeExamCommand,
+  isStartExamRequestPhrase,
+  isStartConfirmPhrase,
+  isStartCancelPhrase,
+  isSubmitExamRequestPhrase,
+  isSubmitConfirmPhrase,
+  isSubmitCancelPhrase
+} from '../voice/examContextResolver.ts';
 import { Mic } from 'lucide-react';
 
 type PilotDemoView = 'instructions' | 'exam' | 'results' | 'history';
@@ -163,6 +182,8 @@ export function PilotDemoScreen() {
   const [secondsRemaining, setSecondsRemaining] = useState<number>(PILOT_DEMO_DURATION_SECONDS);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
   const [clientSubmissionId, setClientSubmissionId] = useState<string>(() => `sub_${Date.now()}`);
+  const [interactionState, setInteractionState] = useState<ExamInteractionState>('PILOT_INTRODUCTION');
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -215,6 +236,12 @@ export function PilotDemoScreen() {
   const suppressInitialAutoReadRef = useRef<boolean>(false);
   const hasAutoReadInstructionsRef = useRef<boolean>(false);
   const beginInputMethodRef = useRef<AcceptanceMethod>('CHECKBOX');
+  const interactionStateRef = useRef<ExamInteractionState>(interactionState);
+  interactionStateRef.current = interactionState;
+  const showStartConfirmRef = useRef<boolean>(showStartConfirm);
+  showStartConfirmRef.current = showStartConfirm;
+  const showSubmitConfirmRef = useRef<boolean>(showSubmitConfirm);
+  showSubmitConfirmRef.current = showSubmitConfirm;
 
   // Load 20 diagnostic questions and candidate's past diagnostic attempts
   const fetchDiagnosticData = useCallback(async () => {
@@ -429,14 +456,15 @@ export function PilotDemoScreen() {
 
       setAcceptanceStatus('EXAM_IN_PROGRESS');
       acceptanceStatusRef.current = 'EXAM_IN_PROGRESS';
-      setAcceptanceFeedback(`${VOICE_ACCEPTED_FEEDBACK} ${VOICE_STARTING_FEEDBACK}`);
+      setInteractionState('PILOT_RUNNING');
+      interactionStateRef.current = 'PILOT_RUNNING';
+      setShowStartConfirm(false);
+      showStartConfirmRef.current = false;
+      setAcceptanceFeedback(`${PILOT_DEMO_STARTED_SPEECH} ${VOICE_STARTING_FEEDBACK}`);
       setTimerRunning(true);
       setView('exam');
 
-      const startAnnouncement =
-        method === 'VOICE'
-          ? `${VOICE_ACCEPTED_FEEDBACK} ${VOICE_STARTING_FEEDBACK}`
-          : VOICE_STARTING_FEEDBACK;
+      const startAnnouncement = `${PILOT_DEMO_STARTED_SPEECH} ${VOICE_STARTING_FEEDBACK}`;
       announce(startAnnouncement, 'assertive');
       playBeacon('success');
 
@@ -463,6 +491,60 @@ export function PilotDemoScreen() {
       settings.autoReadAloud
     ]
   );
+
+  // Request explicit user confirmation before starting Pilot Demo
+  const requestPilotDemoStart = useCallback(
+    (method: AcceptanceMethod = 'VOICE') => {
+      if (examStartedLockRef.current || viewRef.current !== 'instructions') return;
+      stopSpeaking();
+      beginInputMethodRef.current = method;
+      setShowStartConfirm(true);
+      showStartConfirmRef.current = true;
+      setInteractionState('CONFIRMING_START');
+      interactionStateRef.current = 'CONFIRMING_START';
+      setAcceptanceStatus('CONFIRMING_START');
+      acceptanceStatusRef.current = 'CONFIRMING_START';
+      setAcceptanceFeedback(PILOT_DEMO_START_CONFIRM_PROMPT);
+      announce(PILOT_DEMO_START_CONFIRM_PROMPT, 'assertive');
+      speakText(PILOT_DEMO_START_CONFIRM_PROMPT, () => {
+        if (viewRef.current === 'instructions' && showStartConfirmRef.current) {
+          playBeacon('listening');
+          startVoiceListening();
+        }
+      });
+    },
+    [stopSpeaking, announce, speakText, playBeacon, startVoiceListening]
+  );
+
+  const confirmPilotDemoStart = useCallback(() => {
+    if (examStartedLockRef.current) return;
+    acceptedAtRef.current = new Date().toISOString();
+    setShowStartConfirm(false);
+    showStartConfirmRef.current = false;
+    setAcceptanceStatus('ACCEPTED');
+    acceptanceStatusRef.current = 'ACCEPTED';
+    setInteractionState('PILOT_RUNNING');
+    interactionStateRef.current = 'PILOT_RUNNING';
+    handleBeginDiagnostic(beginInputMethodRef.current || 'VOICE');
+  }, [handleBeginDiagnostic]);
+
+  const cancelPilotDemoStart = useCallback(() => {
+    stopSpeaking();
+    setShowStartConfirm(false);
+    showStartConfirmRef.current = false;
+    setInteractionState('PILOT_INTRODUCTION');
+    interactionStateRef.current = 'PILOT_INTRODUCTION';
+    setAcceptanceStatus('WAITING_FOR_ACCEPTANCE');
+    acceptanceStatusRef.current = 'WAITING_FOR_ACCEPTANCE';
+    setAcceptanceFeedback(PILOT_DEMO_START_CANCELLED_SPEECH);
+    announce(PILOT_DEMO_START_CANCELLED_SPEECH, 'polite');
+    speakText(PILOT_DEMO_START_CANCELLED_SPEECH, () => {
+      if (viewRef.current === 'instructions') {
+        playBeacon('listening');
+        startVoiceListening();
+      }
+    });
+  }, [stopSpeaking, announce, speakText, playBeacon, startVoiceListening]);
 
   // Start reading full diagnostic instructions & enter WAITING_FOR_ACCEPTANCE on completion
   const startInstructionsVoiceFlow = useCallback(() => {
@@ -543,6 +625,10 @@ export function PilotDemoScreen() {
   const resetAcceptanceForNewAttempt = useCallback(() => {
     examStartedLockRef.current = false;
     hasAutoReadInstructionsRef.current = false;
+    setShowStartConfirm(false);
+    showStartConfirmRef.current = false;
+    setInteractionState('PILOT_INTRODUCTION');
+    interactionStateRef.current = 'PILOT_INTRODUCTION';
     setAcceptanceStatus('NOT_ACCEPTED');
     acceptanceStatusRef.current = 'NOT_ACCEPTED';
     setAcceptanceMethod(null);
@@ -552,11 +638,47 @@ export function PilotDemoScreen() {
     setAcceptanceFeedback('');
   }, []);
 
+  // Request explicit user confirmation before submitting Pilot Demo
+  const requestPilotDemoSubmit = useCallback(() => {
+    if (isSubmittingRef.current || viewRef.current !== 'exam') return;
+    stopSpeaking();
+    setTimerRunning(false);
+    setShowSubmitConfirm(true);
+    showSubmitConfirmRef.current = true;
+    setInteractionState('CONFIRMING_SUBMISSION');
+    interactionStateRef.current = 'CONFIRMING_SUBMISSION';
+    announce(PILOT_DEMO_SUBMIT_CONFIRM_PROMPT, 'assertive');
+    speakText(PILOT_DEMO_SUBMIT_CONFIRM_PROMPT, () => {
+      if (viewRef.current === 'exam' && showSubmitConfirmRef.current) {
+        playBeacon('listening');
+        startVoiceListening();
+      }
+    });
+  }, [stopSpeaking, announce, speakText, playBeacon, startVoiceListening]);
+
+  const cancelPilotDemoSubmit = useCallback(() => {
+    stopSpeaking();
+    setShowSubmitConfirm(false);
+    showSubmitConfirmRef.current = false;
+    setInteractionState('PILOT_RUNNING');
+    interactionStateRef.current = 'PILOT_RUNNING';
+    setTimerRunning(true);
+    announce(PILOT_DEMO_SUBMIT_CANCELLED_SPEECH, 'polite');
+    speakText(PILOT_DEMO_SUBMIT_CANCELLED_SPEECH, () => {
+      if (viewRef.current === 'exam') {
+        playBeacon('listening');
+        startVoiceListening();
+      }
+    });
+  }, [stopSpeaking, announce, speakText, playBeacon, startVoiceListening]);
+
   // Submit Diagnostic Examination to backend API
   const handleSubmitDiagnostic = useCallback(async () => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setIsSubmitting(true);
+    setInteractionState('SUBMITTING');
+    interactionStateRef.current = 'SUBMITTING';
     setSubmitError(null);
 
     try {
@@ -614,7 +736,10 @@ export function PilotDemoScreen() {
       setTimerRunning(false);
       setIsExamActive(false);
       setShowSubmitConfirm(false);
+      showSubmitConfirmRef.current = false;
       resetAcceptanceForNewAttempt();
+      setInteractionState('COMPLETED');
+      interactionStateRef.current = 'COMPLETED';
 
       setSelectedAttempt(savedAttempt);
       setRecommendations(data.recommendations || []);
@@ -628,7 +753,7 @@ export function PilotDemoScreen() {
 
       switchView('results', savedAttempt.id);
 
-      const summarySpeech = `Pilot Demo Diagnostic submitted. Your total score is ${savedAttempt.totalScore} out of ${savedAttempt.totalMax}, with ${savedAttempt.accuracyPercentage} percent accuracy. Displaying your diagnostic results and personalized recommendations.`;
+      const summarySpeech = `${PILOT_DEMO_SUBMITTED_SPEECH} Your total score is ${savedAttempt.totalScore} out of ${savedAttempt.totalMax}, with ${savedAttempt.accuracyPercentage} percent accuracy. Displaying your diagnostic results and personalized recommendations.`;
       announce(summarySpeech, 'assertive');
       speakText(summarySpeech);
     } catch (err: any) {
@@ -865,10 +990,89 @@ export function PilotDemoScreen() {
   // Voice interaction handler for Pilot Demo Diagnostic (Instructions, Active Exam & Results Dialogue)
   useEffect(() => {
     const unregister = registerVoiceHandler((transcript: string, meta?: { confidence?: number }) => {
-      const clean = transcript.toLowerCase().trim();
+      const clean = normalizeExamCommand(transcript);
+      if (!clean) return false;
 
-      // 1. Instructions view voice acceptance & commands
+      // Block cross-module Mock Examination activation while Pilot Demo is active
+      if (
+        clean === 'start mock examination' ||
+        clean === 'start mock exam' ||
+        clean === 'start mock test' ||
+        clean === 'open mock examination' ||
+        clean === 'open mock exam' ||
+        clean === 'mock examination' ||
+        clean === 'mock exam' ||
+        clean === 'submit mock examination' ||
+        clean === 'submit mock exam'
+      ) {
+        const blockMsg =
+          'You are currently in the Pilot Demo examination. Please complete or exit the Pilot Demo before starting a Mock Examination.';
+        announce(blockMsg, 'assertive');
+        speakText(blockMsg);
+        return true;
+      }
+
+      // 1. Instructions view: Start Request -> CONFIRMING_START -> YES/NO
       if (viewRef.current === 'instructions') {
+        // 1a. Handle pending start confirmation state (CONFIRMING_START)
+        if (
+          showStartConfirmRef.current ||
+          interactionStateRef.current === 'CONFIRMING_START' ||
+          acceptanceStatusRef.current === 'CONFIRMING_START'
+        ) {
+          if (typeof meta?.confidence === 'number' && meta.confidence < 0.6) {
+            announce(PILOT_DEMO_START_UNCLEAR_PROMPT, 'assertive');
+            speakText(PILOT_DEMO_START_UNCLEAR_PROMPT, () => {
+              if (viewRef.current === 'instructions' && showStartConfirmRef.current) {
+                playBeacon('listening');
+                startVoiceListening();
+              }
+            });
+            return true;
+          }
+
+          if (isStartConfirmPhrase(clean)) {
+            confirmPilotDemoStart();
+            return true;
+          }
+
+          if (isStartCancelPhrase(clean)) {
+            cancelPilotDemoStart();
+            return true;
+          }
+
+          // Repeated start request or unclear response while confirming -> ask again
+          const retryMsg = isStartExamRequestPhrase(clean)
+            ? PILOT_DEMO_START_CONFIRM_PROMPT
+            : PILOT_DEMO_START_UNCLEAR_PROMPT;
+          setAcceptanceFeedback(retryMsg);
+          announce(retryMsg, 'assertive');
+          playBeacon('alert');
+          speakText(retryMsg, () => {
+            if (viewRef.current === 'instructions' && showStartConfirmRef.current) {
+              playBeacon('listening');
+              startVoiceListening();
+            }
+          });
+          return true;
+        }
+
+        // 1b. Handle start request phrases on instructions screen -> transition to CONFIRMING_START
+        if (isStartExamRequestPhrase(clean)) {
+          requestPilotDemoStart('VOICE');
+          return true;
+        }
+
+        // 1c. Cannot submit before starting
+        if (isSubmitExamRequestPhrase(clean) || clean === 'confirm submission') {
+          const notStartedMsg =
+            'The Pilot Demo examination has not started yet. Say Start Examination to begin.';
+          setAcceptanceFeedback(notStartedMsg);
+          announce(notStartedMsg, 'assertive');
+          speakText(notStartedMsg);
+          return true;
+        }
+
         const decision = evaluateVoiceAcceptanceCommand(
           acceptanceStatusRef.current,
           transcript,
@@ -881,10 +1085,7 @@ export function PilotDemoScreen() {
         }
 
         if (decision.kind === 'accepted') {
-          acceptedAtRef.current = new Date().toISOString();
-          setAcceptanceStatus('ACCEPTED');
-          acceptanceStatusRef.current = 'ACCEPTED';
-          handleBeginDiagnostic('VOICE');
+          requestPilotDemoStart('VOICE');
           return true;
         }
 
@@ -934,8 +1135,57 @@ export function PilotDemoScreen() {
 
       // 2. Active exam voice commands
       if (viewRef.current === 'exam') {
+        // 2a. Handle pending submission confirmation state (CONFIRMING_SUBMISSION)
+        if (
+          showSubmitConfirmRef.current ||
+          interactionStateRef.current === 'CONFIRMING_SUBMISSION'
+        ) {
+          if (typeof meta?.confidence === 'number' && meta.confidence < 0.6) {
+            announce(PILOT_DEMO_SUBMIT_UNCLEAR_PROMPT, 'assertive');
+            speakText(PILOT_DEMO_SUBMIT_UNCLEAR_PROMPT, () => {
+              if (viewRef.current === 'exam' && showSubmitConfirmRef.current) {
+                playBeacon('listening');
+                startVoiceListening();
+              }
+            });
+            return true;
+          }
+
+          if (isSubmitConfirmPhrase(clean)) {
+            handleSubmitDiagnostic();
+            return true;
+          }
+
+          if (isSubmitCancelPhrase(clean)) {
+            cancelPilotDemoSubmit();
+            return true;
+          }
+
+          // Repeated submit command or unclear response while confirming -> re-prompt
+          const retrySubmitMsg = isSubmitExamRequestPhrase(clean)
+            ? PILOT_DEMO_SUBMIT_CONFIRM_PROMPT
+            : PILOT_DEMO_SUBMIT_UNCLEAR_PROMPT;
+          announce(retrySubmitMsg, 'assertive');
+          playBeacon('alert');
+          speakText(retrySubmitMsg, () => {
+            if (viewRef.current === 'exam' && showSubmitConfirmRef.current) {
+              playBeacon('listening');
+              startVoiceListening();
+            }
+          });
+          return true;
+        }
+
         const q = questionsRef.current[currentIdxRef.current];
         if (!q) return false;
+
+        // Ignore duplicate start requests while already in exam
+        if (isStartExamRequestPhrase(clean)) {
+          const alreadyRunningMsg = 'Your Pilot Demo examination is already in progress.';
+          announce(alreadyRunningMsg, 'polite');
+          speakText(alreadyRunningMsg);
+          return true;
+        }
 
         // Direct voice commands requested in specification
         if (clean === 'read question' || clean === 'repeat question' || clean === 'repeat the question') {
@@ -944,6 +1194,13 @@ export function PilotDemoScreen() {
         }
         if (clean === 'repeat options' || clean === 'read options') {
           repeatOptionsAloud(q);
+          return true;
+        }
+        if (clean === 'explain this question' || clean === 'explain question') {
+          const secMeta = getSectionForSubject(q.subject);
+          const explainMsg = `Question ${currentIdxRef.current + 1} belongs to Section ${secMeta.section}, ${q.subject}, topic ${q.topic}. Correct answers award ${secMeta.correctMarks} marks${secMeta.incorrectMarks < 0 ? ' with 1 mark negative penalty' : ' with no negative marking'}. Full step-by-step explanations are unlocked immediately after you submit the Pilot Demo.`;
+          announce(explainMsg, 'polite');
+          speakText(explainMsg);
           return true;
         }
         if (
@@ -987,13 +1244,12 @@ export function PilotDemoScreen() {
           handleToggleMarkReview();
           return true;
         }
-        if (
-          clean === 'submit examination' ||
-          clean === 'submit exam' ||
-          clean === 'submit test' ||
-          clean === 'finish examination'
-        ) {
-          handleSubmitDiagnostic();
+        if (isSubmitExamRequestPhrase(clean) || clean === 'confirm submission') {
+          requestPilotDemoSubmit();
+          return true;
+        }
+        if (clean === 'cancel submission') {
+          cancelPilotDemoSubmit();
           return true;
         }
 
@@ -1065,15 +1321,21 @@ export function PilotDemoScreen() {
                 return true;
               }
               case 'submit':
-                handleSubmitDiagnostic();
+                requestPilotDemoSubmit();
                 return true;
             }
           }
         }
       }
 
-      // 3. Results view interactive wrong-answer explanations (Section 6)
+      // 3. Results view interactive wrong-answer explanations (Section 6) & completed submission guard
       if (viewRef.current === 'results') {
+        if (isSubmitExamRequestPhrase(clean) || clean === 'confirm submission') {
+          announce(PILOT_DEMO_ALREADY_COMPLETED_SPEECH, 'assertive');
+          speakText(PILOT_DEMO_ALREADY_COMPLETED_SPEECH);
+          return true;
+        }
+
         if (
           clean === 'explain mistakes' ||
           clean === 'start explanation' ||
@@ -1108,10 +1370,17 @@ export function PilotDemoScreen() {
       return false;
     });
 
-    return unregister;
+    return () => {
+      unregister();
+    };
   }, [
     registerVoiceHandler,
     handleBeginDiagnostic,
+    requestPilotDemoStart,
+    confirmPilotDemoStart,
+    cancelPilotDemoStart,
+    requestPilotDemoSubmit,
+    cancelPilotDemoSubmit,
     handleStartExplanations,
     handleExplanationResponse,
     readQuestionAloud,
@@ -1126,7 +1395,10 @@ export function PilotDemoScreen() {
     stopSpeaking,
     slowDownSpeech,
     announce,
-    speakText
+    speakText,
+    playBeacon,
+    startVoiceListening,
+    startInstructionsVoiceFlow
   ]);
 
   // Keyboard shortcuts during active exam (1-4 / A-D for options, Left/Right arrows)
@@ -1526,12 +1798,24 @@ export function PilotDemoScreen() {
                         acceptanceStatusRef.current = 'WAITING_FOR_ACCEPTANCE';
                         setAcceptanceStatus('WAITING_FOR_ACCEPTANCE');
                       }
+                      const cleanText = normalizeExamCommand(text);
+                      if (showStartConfirmRef.current) {
+                        if (isStartConfirmPhrase(cleanText)) {
+                          confirmPilotDemoStart();
+                          return;
+                        }
+                        if (isStartCancelPhrase(cleanText)) {
+                          cancelPilotDemoStart();
+                          return;
+                        }
+                      }
+                      if (isStartExamRequestPhrase(cleanText)) {
+                        requestPilotDemoStart('VOICE');
+                        return;
+                      }
                       const decision = evaluateVoiceAcceptanceCommand('WAITING_FOR_ACCEPTANCE', text);
                       if (decision.kind === 'accepted') {
-                        acceptedAtRef.current = new Date().toISOString();
-                        setAcceptanceStatus('ACCEPTED');
-                        acceptanceStatusRef.current = 'ACCEPTED';
-                        handleBeginDiagnostic('VOICE');
+                        requestPilotDemoStart('VOICE');
                       } else {
                         const msg = decision.feedbackSpeech || VOICE_AMBIGUOUS_FEEDBACK;
                         setAcceptanceFeedback(msg);
@@ -1613,7 +1897,7 @@ export function PilotDemoScreen() {
                       e.detail === 0 || beginInputMethodRef.current === 'KEYBOARD'
                         ? 'KEYBOARD'
                         : 'CHECKBOX';
-                    handleBeginDiagnostic(method);
+                    requestPilotDemoStart(method);
                   }}
                   data-testid="begin-pilot-demo-btn"
                   className={`inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-lg shadow-xs transition-all focus:outline-none focus:ring-2 focus:ring-[#1749E8] focus:ring-offset-2 ${
@@ -1628,6 +1912,48 @@ export function PilotDemoScreen() {
               </div>
             </div>
           </div>
+
+          {/* Start Pilot Demo Confirmation Dialog */}
+          {showStartConfirm && (
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="pilot-start-dialog-title"
+              aria-describedby="pilot-start-dialog-desc"
+              data-testid="pilot-start-confirm-dialog"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+            >
+              <div className="bg-white border-2 border-[#1749E8] rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <h3 id="pilot-start-dialog-title" className="text-base font-extrabold text-[#172033]">
+                  Start Pilot Demo Examination?
+                </h3>
+                <p id="pilot-start-dialog-desc" className="text-xs text-[#53627A] leading-relaxed">
+                  Are you sure you want to start the Pilot Demo examination? You will have{' '}
+                  <strong>25 minutes</strong> to answer <strong>20 questions</strong> across all 4 SSC MTS sections.
+                  Say <strong>"YES"</strong> to begin or <strong>"NO"</strong> to cancel.
+                </p>
+                <div className="flex justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={cancelPilotDemoStart}
+                    data-testid="pilot-cancel-start-btn"
+                    className="px-4 py-2 text-xs font-bold text-[#53627A] bg-[#F8F9FB] hover:bg-[#E8EBF0] rounded-lg border border-[#E8EBF0]"
+                  >
+                    NO, Cancel
+                  </button>
+                  <button
+                    type="button"
+                    autoFocus
+                    onClick={confirmPilotDemoStart}
+                    data-testid="pilot-confirm-start-btn"
+                    className="px-4 py-2 text-xs font-bold text-white bg-[#1749E8] hover:bg-[#123BB8] rounded-lg"
+                  >
+                    YES, Start Examination
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1703,7 +2029,7 @@ export function PilotDemoScreen() {
 
               <button
                 type="button"
-                onClick={() => setShowSubmitConfirm(true)}
+                onClick={requestPilotDemoSubmit}
                 disabled={isSubmitting}
                 data-testid="pilot-submit-exam-btn"
                 className="px-4 py-2 bg-[#15803D] hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
@@ -1934,7 +2260,7 @@ export function PilotDemoScreen() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setShowSubmitConfirm(true)}
+                      onClick={requestPilotDemoSubmit}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#15803D] hover:bg-emerald-800 text-white"
                     >
                       <span>Review &amp; Submit</span>
@@ -2017,7 +2343,7 @@ export function PilotDemoScreen() {
               <div className="pt-3 border-t border-[#E8EBF0]">
                 <button
                   type="button"
-                  onClick={() => setShowSubmitConfirm(true)}
+                  onClick={requestPilotDemoSubmit}
                   disabled={isSubmitting}
                   className="w-full py-2.5 bg-[#1749E8] hover:bg-[#123BB8] text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
                 >
@@ -2041,27 +2367,31 @@ export function PilotDemoScreen() {
                   Submit Pilot Demo Diagnostic?
                 </h3>
                 <p id="pilot-submit-dialog-desc" className="text-xs text-[#53627A] leading-relaxed">
-                  You have answered <strong>{paletteStats.answered}</strong> out of{' '}
+                  Are you sure you want to submit your Pilot Demo examination? You have answered{' '}
+                  <strong>{paletteStats.answered}</strong> out of{' '}
                   <strong>{questions.length}</strong> questions ({paletteStats.unanswered} unanswered,{' '}
-                  {paletteStats.marked} marked for review). Once submitted, your diagnostic scorecard and topic recommendations will be generated immediately.
+                  {paletteStats.marked} marked for review). Once submitted, you may not be able to change your answers.
+                  Say <strong>"YES"</strong> to submit or <strong>"NO"</strong> to continue the examination.
                 </p>
                 <div className="flex justify-end gap-2.5 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowSubmitConfirm(false)}
+                    onClick={cancelPilotDemoSubmit}
                     disabled={isSubmitting}
+                    data-testid="pilot-cancel-submit-btn"
                     className="px-4 py-2 text-xs font-bold text-[#53627A] bg-[#F8F9FB] hover:bg-[#E8EBF0] rounded-lg border border-[#E8EBF0]"
                   >
-                    Return to Exam
+                    NO, Continue Exam
                   </button>
                   <button
                     type="button"
+                    autoFocus
                     onClick={handleSubmitDiagnostic}
                     disabled={isSubmitting}
                     data-testid="pilot-confirm-submit-btn"
                     className="px-4 py-2 text-xs font-bold text-white bg-[#15803D] hover:bg-emerald-800 rounded-lg"
                   >
-                    {isSubmitting ? 'Saving Attempt...' : 'Confirm & Submit'}
+                    {isSubmitting ? 'Saving Attempt...' : 'YES, Confirm & Submit'}
                   </button>
                 </div>
               </div>

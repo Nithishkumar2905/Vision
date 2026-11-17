@@ -229,7 +229,24 @@ export function parseSpokenAnswer(transcript: string, options?: QuestionOptions)
     return { type: 'control', command: 'timer' };
   }
 
-  if (clean === 'submit' || clean === 'submit exam' || clean === 'submit test' || clean === 'finish test') {
+  if (
+    clean === 'submit' ||
+    clean === 'submit exam' ||
+    clean === 'submit the exam' ||
+    clean === 'submit examination' ||
+    clean === 'submit the examination' ||
+    clean === 'submit test' ||
+    clean === 'submit the test' ||
+    clean === 'submit pilot demo' ||
+    clean === 'submit pilot examination' ||
+    clean === 'submit diagnostic' ||
+    clean === 'submit diagnostic examination' ||
+    clean === 'finish test' ||
+    clean === 'finish exam' ||
+    clean === 'finish examination' ||
+    clean === 'end examination' ||
+    clean === 'end exam'
+  ) {
     return { type: 'control', command: 'submit' };
   }
 

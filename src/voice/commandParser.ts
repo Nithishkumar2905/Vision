@@ -632,20 +632,70 @@ export function matchScreenNavigation(
   // 2. Strip filler verbs
   const stripped = stripNavigationPrefixes(normalized);
 
+  // Never treat exam submission or confirmation commands as screen navigation across any screen
+  const examControlNonNavPhrases = new Set([
+    'submit',
+    'submit exam',
+    'submit the exam',
+    'submit examination',
+    'submit the examination',
+    'submit test',
+    'submit the test',
+    'submit pilot demo',
+    'submit pilot examination',
+    'submit diagnostic',
+    'submit diagnostic examination',
+    'submit mock exam',
+    'submit mock examination',
+    'finish exam',
+    'finish examination',
+    'finish test',
+    'end exam',
+    'end examination',
+    'confirm submission',
+    'cancel submission',
+    'explain this question',
+    'explain question',
+    'read options',
+    'repeat question',
+    'next question',
+    'previous question'
+  ]);
+  if (examControlNonNavPhrases.has(normalized) || examControlNonNavPhrases.has(stripped)) {
+    return null;
+  }
+
   // Guard against words that are primarily screen controls on specific screens:
-  // e.g. "review" on mock_exam means review questions, not Revision Planner.
+  // e.g. "review" on mock_exam or pilot_demo means review questions, not Revision Planner.
   // "repeat" means repeat question, not results.
-  // "submit" means submit exam, not login/registration.
-  if (currentScreen === 'mock_exam') {
+  // "submit" means submit exam, not login/registration or mock_exam.
+  // "start examination" / "begin test" on pilot_demo or mock_exam means start the current screen's exam.
+  if (currentScreen === 'mock_exam' || currentScreen === 'pilot_demo') {
     if (
       normalized === 'review' ||
       normalized === 'review test' ||
       normalized === 'repeat' ||
       normalized === 'submit' ||
       normalized === 'previous' ||
-      normalized === 'back'
+      normalized === 'back' ||
+      normalized === 'go back' ||
+      normalized === 'start examination' ||
+      normalized === 'start the examination' ||
+      normalized === 'begin examination' ||
+      normalized === 'begin test' ||
+      normalized === 'start test' ||
+      normalized === 'start exam' ||
+      normalized === 'begin exam' ||
+      normalized === 'start pilot demo' ||
+      normalized === 'begin pilot examination' ||
+      normalized === 'start diagnostic' ||
+      normalized === 'begin diagnostic' ||
+      normalized === 'confirm' ||
+      normalized === 'cancel' ||
+      normalized === 'not now' ||
+      normalized === 'start now'
     ) {
-      return null; // Let mock exam screen handle local control
+      return null; // Let active exam screen handle local control
     }
   }
 

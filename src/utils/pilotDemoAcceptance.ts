@@ -9,6 +9,7 @@ export type AcceptanceStatus =
   | 'NOT_ACCEPTED'
   | 'READING_INSTRUCTIONS'
   | 'WAITING_FOR_ACCEPTANCE'
+  | 'CONFIRMING_START'
   | 'ACCEPTED'
   | 'STARTING_EXAM'
   | 'EXAM_IN_PROGRESS';
@@ -25,16 +26,16 @@ export interface AcceptanceRecord {
 export const MIN_ACCEPTANCE_CONFIDENCE = 0.65;
 
 export const PILOT_DEMO_FULL_INSTRUCTIONS_SPEECH =
-  'You are about to begin the Pilot Demo Diagnostic examination. ' +
+  'Welcome to the Pilot Examination Demo. This demo allows you to experience the examination environment. ' +
+  'You can navigate questions, select answers, review your responses and submit your examination. ' +
   'There are 20 questions across 4 sections and the duration is 25 minutes. ' +
   'Sections A and B cover Numerical Ability and Reasoning, and award three marks for each correct answer without negative marking. ' +
   'Sections C and D cover General Awareness and English, and award three marks for each correct answer and deduct one mark for an incorrect answer. ' +
-  'You can navigate between questions, change answers, mark questions for review, and check remaining time before submitting. ' +
-  "Please say 'I agree and begin test' to accept the instructions and start your examination.";
+  "Say 'Start examination' or 'I agree and begin test' to request starting your examination.";
 
-export const VOICE_LISTENING_FEEDBACK = 'I am listening for your examination acceptance.';
+export const VOICE_LISTENING_FEEDBACK = 'I am listening for your examination start request or confirmation.';
 export const VOICE_ACCEPTED_FEEDBACK = 'Your examination instructions have been accepted.';
-export const VOICE_STARTING_FEEDBACK = 'Your Pilot Demo Diagnostic is starting now. You have 25 minutes.';
+export const VOICE_STARTING_FEEDBACK = 'Your Pilot Demo examination has started. Question 1 is now displayed. You have 25 minutes.';
 export const VOICE_AMBIGUOUS_FEEDBACK =
   "I could not clearly understand your acceptance. Please say 'I agree and begin test'.";
 export const VOICE_YES_CLARIFICATION_FEEDBACK =

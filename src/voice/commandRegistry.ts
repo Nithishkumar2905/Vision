@@ -144,8 +144,7 @@ export const SCREEN_TARGETS: Record<ScreenId, NavigationTarget> = {
       'full test',
       'timed test',
       'ssc mts mock test',
-      'accessible mock examination',
-      'examination'
+      'accessible mock examination'
     ],
     requiresAuth: true,
     actionSummary: 'You can take a full 90-question SSC MTS simulated examination with Section I and Section II timing and compensatory time support.'

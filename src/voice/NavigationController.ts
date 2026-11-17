@@ -32,6 +32,10 @@ import {
 } from './commandParser.ts';
 import { SCREEN_TARGETS } from './commandRegistry.ts';
 import { NavigationCommandResult, NavigationContext } from './commandTypes.ts';
+import {
+  isSubmitExamRequestPhrase,
+  NO_ACTIVE_EXAM_SUBMIT_SPEECH
+} from './examContextResolver.ts';
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -465,6 +469,21 @@ export class NavigationController {
     // ───────────────────────────────────────────
     if (isNavigationAttempt) {
       return this._handleNavigation(isNavigationAttempt, base);
+    }
+
+    // ───────────────────────────────────────────
+    // PRIORITY 8.5: Exam Submission Command when No Exam is Active (Context = NONE)
+    // ───────────────────────────────────────────
+    if (
+      isSubmitExamRequestPhrase(clean) ||
+      clean === 'confirm submission' ||
+      clean === 'cancel submission'
+    ) {
+      return {
+        ...base,
+        status: 'system_handled',
+        spokenResponse: NO_ACTIVE_EXAM_SUBMIT_SPEECH
+      };
     }
 
     // ───────────────────────────────────────────

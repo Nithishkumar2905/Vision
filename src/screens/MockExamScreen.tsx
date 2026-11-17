@@ -34,6 +34,12 @@ import {
   formatAllOptionsPrompt,
   formatSingleOptionPrompt
 } from '../utils/repeatQuestionHelper.ts';
+import {
+  MOCK_EXAM_SUBMIT_CONFIRM_PROMPT,
+  normalizeExamCommand,
+  isSubmitConfirmPhrase,
+  isSubmitCancelPhrase
+} from '../voice/examContextResolver.ts';
 
 export function MockExamScreen() {
   const {
@@ -83,6 +89,9 @@ export function MockExamScreen() {
 
   const secondsRemainingRef = useRef<number>(secondsRemaining);
   secondsRemainingRef.current = secondsRemaining;
+
+  const showSubmitModalRef = useRef<boolean>(showSubmitModal);
+  showSubmitModalRef.current = showSubmitModal;
 
   const currentAttemptRef = useRef<MockExamAttempt | null>(currentAttempt);
   currentAttemptRef.current = currentAttempt;
@@ -488,8 +497,26 @@ export function MockExamScreen() {
     if (!currentQ && isExamStarted) return;
 
     const unregister = registerVoiceHandler((transcript: string) => {
+      const clean = normalizeExamCommand(transcript);
+      if (!clean) return false;
+
+      // Block Pilot Demo specific commands from triggering Mock Exam submission or switching
+      if (
+        clean === 'submit pilot demo' ||
+        clean === 'submit pilot examination' ||
+        clean === 'submit diagnostic' ||
+        clean === 'submit diagnostic examination' ||
+        clean === 'start pilot demo' ||
+        clean === 'begin pilot examination'
+      ) {
+        const blockMsg =
+          'You are currently in the Mock Examination. Pilot Demo commands are disabled while Mock Examination is active.';
+        announce(blockMsg, 'assertive');
+        speakText(blockMsg);
+        return true;
+      }
+
       if (!isExamStarted) {
-        const clean = transcript.toLowerCase().trim();
         if (
           clean === 'start' ||
           clean === 'start exam' ||
@@ -512,6 +539,33 @@ export function MockExamScreen() {
           return true;
         }
         return false;
+      }
+
+      // Handle pending Mock Exam submission confirmation modal
+      if (showSubmitModalRef.current) {
+        if (isSubmitConfirmPhrase(clean)) {
+          handleFinalSubmit();
+          return true;
+        }
+        if (isSubmitCancelPhrase(clean)) {
+          setShowSubmitModal(false);
+          showSubmitModalRef.current = false;
+          const cancelMsg = 'Submission cancelled. Continuing your Mock Examination.';
+          announce(cancelMsg, 'polite');
+          speakText(cancelMsg);
+          return true;
+        }
+        announce(MOCK_EXAM_SUBMIT_CONFIRM_PROMPT, 'assertive');
+        speakText(MOCK_EXAM_SUBMIT_CONFIRM_PROMPT);
+        return true;
+      }
+
+      if (clean === 'confirm submission') {
+        setShowSubmitModal(true);
+        showSubmitModalRef.current = true;
+        announce(MOCK_EXAM_SUBMIT_CONFIRM_PROMPT, 'assertive');
+        speakText(MOCK_EXAM_SUBMIT_CONFIRM_PROMPT);
+        return true;
       }
 
       const optionsMap = {
@@ -595,7 +649,10 @@ export function MockExamScreen() {
             return true;
           }
           if (parsed.command === 'submit') {
-            handleFinalSubmit();
+            setShowSubmitModal(true);
+            showSubmitModalRef.current = true;
+            announce(MOCK_EXAM_SUBMIT_CONFIRM_PROMPT, 'assertive');
+            speakText(MOCK_EXAM_SUBMIT_CONFIRM_PROMPT);
             return true;
           }
           if (parsed.command === 'review') {
